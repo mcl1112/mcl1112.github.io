@@ -1,0 +1,20 @@
+{
+  "name": "pastel-sem-fila",
+  "version": "1.0.0",
+  "description": "Site de pedidos de pastel com retirada agendada, cardapio editavel e backend Supabase",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "cap:add-android": "npx cap add android",
+    "cap:sync": "npx cap sync",
+    "cap:open-android": "npx cap open android"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/android": "^6.1.2"
+  }
+}
