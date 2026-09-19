@@ -99,7 +99,7 @@ main { padding: 16px; }
 
 /* Mídia com Fallback */
 .media-box {
-  position: relative; overflow: hidden; background: #E5E7EB;
+  position: relative; overflow: hidden;/* background: #E5E7EB;*/
   display: flex; align-items: center; justify-content: center;
 }
 .media-box img, .media-box video {
@@ -250,6 +250,7 @@ main { padding: 16px; }
 .fry-scene img, .fry-scene video { width: 100%; height: 100%; object-fit: cover; opacity: 0.35; mix-blend-mode: overlay; }
 .fry-pastel {
   position: absolute; font-size: 42px;
+  display: none;
   animation: sizzle 0.8s ease-in-out infinite alternate;
   filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4));
 }
