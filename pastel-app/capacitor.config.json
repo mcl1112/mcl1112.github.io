@@ -1,0 +1,6 @@
+{
+  "appId": "com.pastelsemfila.app",
+  "appName": "Pastel Sem Fila",
+  "webDir": "public",
+  "bundledWebRuntime": false
+}
