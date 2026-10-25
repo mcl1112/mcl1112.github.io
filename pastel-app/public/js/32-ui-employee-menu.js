@@ -14,6 +14,7 @@ function empMenuTab(){
           <div style="flex: 1;">
             <div style="font-weight: 700;">${item.name}</div>
             <div style="font-size: 12px; color: var(--text-muted);">${item.cat} • ${money(item.price)}</div>
+            ${isOutOfStock(item) ? `<div style="font-size:11px; font-weight:800; color:#B91C1C; margin-top:2px;">Sem estoque — fora do cardápio do cliente</div>` : ''}
           </div>
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px;">
@@ -79,6 +80,7 @@ async function toggleActiveItem(id){
 async function deleteMenuItem(id){
   if(!confirm('Excluir item do cardápio?')) return;
   state.menu = state.menu.filter(m => m.id !== id);
+  state.recipes = state.recipes.filter(r => r.menuItemId !== id);
   await deleteMenuItemRemote(id);
   render();
 }

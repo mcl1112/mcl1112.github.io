@@ -49,6 +49,7 @@ function goCustomer(){
   if(state.customerUser){
     state.view = 'customer';
     state.step = 1;
+    refreshStockInBackground();
   } else {
     state.authMode = 'login';
     state.authError = '';

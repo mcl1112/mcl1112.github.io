@@ -58,7 +58,7 @@ function floatCartBar(){
 }
 
 function stepMenu(){
-  const activeItems = state.menu.filter(m => m.active !== false);
+  const activeItems = visibleMenuItems(); // já esconde o que está sem estoque
   const highlights = activeItems.filter(m => m.highlight);
   const categories = [...new Set(activeItems.map(m => m.cat))];
 
@@ -70,6 +70,14 @@ function stepMenu(){
         <p>${promoBannerText()}</p>
       </div>
     </div>
+
+    ${activeItems.length === 0 ? `
+      <div style="text-align:center; padding:30px 10px; color:var(--text-muted);">
+        <div style="font-size:40px; margin-bottom:8px;">😅</div>
+        <b>Estamos sem itens disponíveis no momento.</b><br>
+        <span style="font-size:13px;">Volte daqui a pouco — assim que repormos o estoque, o cardápio volta!</span>
+      </div>
+    ` : ''}
 
     ${highlights.length > 0 ? `
       <div class="section-header">
@@ -141,6 +149,11 @@ function foodCardRow(item){
 }
 
 function addToCart(id, evt){
+  if(!canAddOne(id)){
+    playSoundEffect('error');
+    showToast('Não há mais estoque disponível deste item.');
+    return;
+  }
   playSoundEffect('pop');
   state.cart[id] = (state.cart[id] || 0) + 1;
   render();
@@ -156,7 +169,10 @@ function changeQty(id, delta){
 function goStep(n){
   state.step = n;
   if(n === 3) prepSlotsStep();
-  else render();
+  else {
+    render();
+    if(n === 1 || n === 2) refreshStockInBackground();
+  }
 }
 
 function stepCart(){
@@ -213,9 +229,13 @@ function stepCart(){
 
 async function prepSlotsStep(){
   await loadOrders();
+  await loadStock();
+  const changed = clampCartToStock();
+  if(cartCount() === 0) state.step = 2; // tudo esgotou: volta pra sacola vazia
   if(!state.selectedDate) state.selectedDate = startOfDay(new Date());
   state.slotsCache = generateSlots(state.selectedDate);
   render();
+  if(changed) showToast('Alguns itens esgotaram e foram ajustados na sua sacola.');
 }
 
 function stepSlots(){
@@ -321,6 +341,24 @@ async function submitOrder(){
 
   const items = cartItems();
   const t = calcTotals();
+
+  // Dá baixa no estoque ANTES de gravar o pedido. A conta é feita dentro do
+  // banco, numa transação só: se faltar qualquer coisa, nada é baixado.
+  const stockErr = await consumeStock(items);
+  if(stockErr){
+    if(isStockShortage(stockErr)){
+      alert('Ops! Algum item do seu pedido acabou de esgotar. Já ajustamos a sua sacola.');
+      await loadStock();
+      clampCartToStock();
+      state.step = cartCount() > 0 ? 2 : 1;
+      render();
+    } else {
+      alert('Não foi possível reservar os itens agora. Tente novamente.');
+      if(btn){ btn.disabled = false; btn.textContent = `Confirmar Pedido • ${money(t.total)}`; }
+    }
+    return;
+  }
+
   const parts = state.selectedSlotKey.split('-');
   const pickupDateKey = parts.slice(0,3).join('-');
   const pickupDate = new Date(parts[0], parts[1]-1, parts[2], parts[3], parts[4]);
@@ -350,6 +388,7 @@ async function submitOrder(){
 
   const err = await insertOrder(order);
   if(err){
+    await restoreStock(items); // devolve o que foi baixado
     alert('Não foi possível registrar o pedido. Tente novamente.');
     if(btn){ btn.disabled = false; btn.textContent = `Confirmar Pedido • ${money(t.total)}`; }
     return;

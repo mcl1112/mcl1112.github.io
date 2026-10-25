@@ -19,9 +19,12 @@ function rowToMenuItem(row){
   return {
     id: row.id, cat: row.cat, name: row.name, desc: row.description,
     price: Number(row.price), emoji: row.emoji, image: row.image,
-    badge: row.badge, highlight: !!row.highlight, active: row.active !== false
+    badge: row.badge, highlight: !!row.highlight, active: row.active !== false,
+    stockMode: row.stock_mode || 'none', stockQty: Number(row.stock_qty || 0)
   };
 }
+// (de propósito NÃO inclui stock_mode/stock_qty: editar nome/preço não pode
+//  sobrescrever o estoque. Eles são gravados pela aba Estoque.)
 function menuItemToRow(item){
   return {
     id: item.id, cat: item.cat, name: item.name, description: item.desc,

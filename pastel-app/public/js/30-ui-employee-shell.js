@@ -34,9 +34,24 @@ function checkPasscode(){
   }
 }
 async function enterEmployeeDashboard(){
-  await Promise.all([loadOrders(), loadPromotions(), loadReviews()]);
+  await Promise.all([loadOrders(), loadPromotions(), loadReviews(), loadStock()]);
   render();
-  startOrdersRealtime(() => { if(state.view === 'employee') render(); });
+  startOrdersRealtime(async () => {
+    if(state.view !== 'employee') return;
+    await loadStock(); // pedido novo = estoque mudou
+    if(shouldLiveRender()) render();
+  });
+}
+
+// Quando chega pedido novo a tela atualiza sozinha — mas NÃO enquanto a equipe
+// está digitando num formulário (senão o que foi digitado seria apagado).
+function shouldLiveRender(){
+  if(state.empTab === 'config') return false;
+  if(state.addingItem || state.editingItemId) return false;
+  if(state.addingPromo || state.editingPromoId) return false;
+  if(state.addingIngredient || state.editingIngredientId) return false;
+  if(state.restocking || state.editingStockItemId) return false;
+  return true;
 }
 
 function viewEmployee(){
@@ -49,6 +64,7 @@ function viewEmployee(){
       <div class="tabs-bar">
         <button class="tab-item ${state.empTab==='pedidos'?'active':''}" onclick="setEmpTab('pedidos')">Pedidos</button>
         <button class="tab-item ${state.empTab==='cardapio'?'active':''}" onclick="setEmpTab('cardapio')">Cardápio</button>
+        <button class="tab-item ${state.empTab==='estoque'?'active':''}" onclick="setEmpTab('estoque')">Estoque</button>
         <button class="tab-item ${state.empTab==='descontos'?'active':''}" onclick="setEmpTab('descontos')">Descontos</button>
         <button class="tab-item ${state.empTab==='avaliacao'?'active':''}" onclick="setEmpTab('avaliacao')">Avaliação</button>
         <button class="tab-item ${state.empTab==='config'?'active':''}" onclick="setEmpTab('config')">Config</button>
@@ -56,6 +72,7 @@ function viewEmployee(){
 
       ${state.empTab === 'pedidos' ? empOrdersTab() : ''}
       ${state.empTab === 'cardapio' ? empMenuTab() : ''}
+      ${state.empTab === 'estoque' ? empStockTab() : ''}
       ${state.empTab === 'descontos' ? empDiscountsTab() : ''}
       ${state.empTab === 'avaliacao' ? empReviewsTab() : ''}
       ${state.empTab === 'config' ? empConfigTab() : ''}

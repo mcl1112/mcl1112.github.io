@@ -99,7 +99,7 @@ main { padding: 16px; }
 
 /* Mídia com Fallback */
 .media-box {
-  position: relative; overflow: hidden;/* background: #E5E7EB;*/
+  position: relative; overflow: hidden; background: #E5E7EB;
   display: flex; align-items: center; justify-content: center;
 }
 .media-box img, .media-box video {
@@ -194,7 +194,7 @@ main { padding: 16px; }
 }
 .food-details { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
 .food-name { font-size: 15px; font-weight: 700; color: var(--text-main); margin-bottom: 2px; }
-.food-desc { font-size: 12px; color: var(--text-muted); line-height: 1.3; margin-bottom: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.food-desc { font-size: 12px; color: var(--text-muted); line-height: 1.3; margin-bottom: 6px; display: -webkit-box; -webkit-line: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .food-bottom { display: flex; justify-content: space-between; align-items: center; }
 .food-price { font-size: 15px; font-weight: 800; color: var(--text-main); }
 
@@ -250,7 +250,6 @@ main { padding: 16px; }
 .fry-scene img, .fry-scene video { width: 100%; height: 100%; object-fit: cover; opacity: 0.35; mix-blend-mode: overlay; }
 .fry-pastel {
   position: absolute; font-size: 42px;
-  display: none;
   animation: sizzle 0.8s ease-in-out infinite alternate;
   filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4));
 }
@@ -313,3 +312,26 @@ main { padding: 16px; }
 .st-preparando { background: #E0F2FE; color: #0284C7; }
 .st-pronto { background: #DCFCE7; color: #16A34A; }
 .st-entregue { background: #F3F4F6; color: #6B7280; }
+
+/* ---------- Estoque ---------- */
+.pill-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.pill { flex: 1; padding: 9px 12px; border-radius: 20px; border: 1.5px solid var(--line); background: #FFF; font-weight: 700; font-size: 13px; color: var(--text-muted); }
+.pill.active { background: var(--text-main); color: #FFF; border-color: var(--text-main); }
+.muted { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
+.info-banner { background: #EFF6FF; border: 1px solid #BFDBFE; color: #1E40AF; border-radius: 12px; padding: 10px 12px; font-size: 12px; line-height: 1.45; margin-bottom: 14px; }
+.stock-warn { background: #FEE2E2; color: #B91C1C; border-radius: 8px; padding: 6px 10px; font-size: 12px; font-weight: 700; margin: 8px 0; }
+.restock-row { display: flex; gap: 6px; align-items: center; margin-top: 10px; }
+.restock-row input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1.5px solid var(--line); font-size: 14px; }
+.recipe-line { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+.recipe-line select { flex: 1; min-width: 0; padding: 10px; border-radius: 10px; border: 1.5px solid var(--line); font-size: 13px; background: #FFF; }
+.recipe-line input { width: 84px; padding: 10px; border-radius: 10px; border: 1.5px solid var(--line); font-size: 14px; }
+.recipe-line .unit { font-size: 12px; color: var(--text-muted); min-width: 22px; }
+
+/* Aviso rápido */
+.toast {
+  position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+  background: #111827; color: #FFF; padding: 10px 16px; border-radius: 12px;
+  font-size: 13px; font-weight: 600; z-index: 100; max-width: 90%; text-align: center;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.3); animation: slideUp 0.25s ease;
+}
+.toast-hide { opacity: 0; transition: opacity 0.4s; }

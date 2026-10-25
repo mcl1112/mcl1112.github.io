@@ -23,3 +23,13 @@ function renderVideoHtml(src, fallbackEmoji, classAttr=""){
     </div>
   `;
 }
+
+// Aviso rápido que some sozinho (mais leve que alert())
+function showToast(msg){
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.classList.add('toast-hide'), 2600);
+  setTimeout(() => el.remove(), 3100);
+}

@@ -13,7 +13,9 @@ pastel-app/
 ├── capacitor.config.json
 ├── supabase/
 │   ├── schema.sql                                  -> schema original (rode primeiro, se ainda não rodou)
-│   └── migration-contas-pix-descontos-avaliacoes.sql -> NOVO: rode depois do schema.sql
+│   ├── migration-contas-pix-descontos-avaliacoes.sql -> rode depois do schema.sql
+│   ├── migration-tipo-chave-pix.sql                  -> tipo da chave Pix
+│   └── migration-estoque.sql                         -> NOVO: estoque (rode por último)
 └── public/
     ├── index.html
     ├── style.css
@@ -30,6 +32,7 @@ pastel-app/
         ├── 08-data-auth.js           -> conta do cliente (login/cadastro)
         ├── 09-data-orders.js         -> pedidos + status de pagamento
         ├── 10-data-reviews.js        -> avaliações
+        ├── 11-data-stock.js          -> estoque: ingredientes, receitas, disponibilidade, baixa
         ├── 15-ui-shared.js           -> helper de imagem com fallback
         ├── 20-ui-login.js            -> escolha cliente/equipe
         ├── 21-ui-customer-auth.js    -> tela de login/cadastro do cliente
@@ -41,6 +44,7 @@ pastel-app/
         ├── 33-ui-employee-discounts.js -> aba Descontos (NOVA)
         ├── 34-ui-employee-reviews.js -> aba Avaliação (NOVA)
         ├── 35-ui-employee-config.js  -> aba Config (+ chave Pix)
+        ├── 36-ui-employee-stock.js   -> aba Estoque (NOVA)
         └── 99-app.js                 -> roteador de telas + inicialização
 ```
 
@@ -118,6 +122,39 @@ cliente, que também vê um resumo das promoções vigentes no cardápio.
 Quando um pedido chega ao status "Retirado" (entregue), o cliente vê um
 botão "Avaliar" em Meus Pedidos (estrelas de 1 a 5 + comentário opcional).
 A equipe vê tudo isso na aba **Avaliação**, com nota média no topo.
+
+## 8. Estoque (aba "Estoque" da equipe)
+
+**Rode antes:** `supabase/migration-estoque.sql` no SQL Editor do Supabase.
+
+A aba tem duas telas:
+
+- **Ingredientes** — o que você tem guardado (massa, carne, queijo, camarão...), com
+  unidade (g, kg, ml, L, un). Botão **+ Repor** soma ao que já existe; **Editar** corrige o total.
+  Ingredientes compartilhados (a massa!) são cadastrados uma vez só.
+- **Produtos** — cada item do cardápio, com 3 modos:
+  - **Não controlar** (padrão): o item fica sempre disponível. Nada muda até você configurar.
+  - **Por receita** (pastéis): você diz quanto de cada ingrediente vai em 1 unidade.
+  - **Estoque direto** (bebidas de revenda): só a quantidade de unidades (ex: 24 Cocas).
+
+**Exemplo — "tenho ingredientes para 100 pastéis de carne":**
+1. Ingredientes → cadastre `Massa de pastel` = 100 un e `Carne moída` = 6000 g.
+2. Produtos → Pastel de Carne → Controlar estoque → Por receita → `1 un` de Massa + `60 g` de Carne.
+3. Pronto: o card mostra **"Dá pra fazer: 100"** e quem está limitando (a carne, ou a massa).
+   Cada pedido desconta; ao chegar a zero o pastel some do cardápio do cliente até você repor.
+4. Pastel de Camarão: crie o ingrediente `Camarão` e use a **mesma massa** na receita — a massa
+   é descontada de todos os sabores juntos, e o camarão só dele.
+
+Como o sistema se comporta:
+- A baixa acontece **dentro do banco, numa transação só**, quando o cliente confirma o pedido.
+  Dois clientes pedindo a última unidade ao mesmo tempo: só um consegue; o outro recebe aviso e a
+  sacola é ajustada.
+- Na sacola o cliente não consegue passar do que existe (inclusive somando sabores que
+  dividem a mesma massa).
+- Se o pedido falhar depois da baixa, o estoque é devolvido sozinho.
+- Receita **sem ingredientes** não trava a venda (o card mostra "Receita vazia" pra você lembrar).
+- Ingrediente usado em alguma receita não pode ser excluído (evita receitas "furadas").
+- Nesta versão **não existe cancelamento de pedido**; quando existir, é ele quem devolve o estoque.
 
 ## 7. Gerar o APK (sem mudanças em relação a antes)
 

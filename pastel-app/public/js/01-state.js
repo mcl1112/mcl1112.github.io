@@ -39,6 +39,8 @@ let state = {
   config: {...DEFAULT_CONFIG},
   menu: [],
   promotions: [],
+  ingredients: [],        // estoque: ingredientes
+  recipes: [],            // estoque: linhas de receita {menuItemId, ingredientId, quantity}
   orders: [],
   reviews: [],
   view: 'login',        // login | customer-auth | customer | meus-pedidos | employee-gate | employee
@@ -61,6 +63,12 @@ let state = {
   addingItem: false,
   editingPromoId: null,
   addingPromo: false,
+  stockView: 'produtos',      // aba Estoque: 'produtos' | 'ingredientes'
+  addingIngredient: false,
+  editingIngredientId: null,
+  restocking: null,           // { kind: 'ingredient' | 'item', id }
+  editingStockItemId: null,
+  stockDraft: null,           // { mode, qty, lines: [{ingredientId, quantity}] }
   reviewingOrderId: null,
   reviewDraft: {rating:5, comment:''},
   soundOn: true

@@ -59,3 +59,9 @@ function starsHtml(rating, size){
   }
   return out;
 }
+
+function fmtQty(n){
+  const v = Number(n);
+  if(!isFinite(v)) return '∞';
+  return v.toLocaleString('pt-BR', { maximumFractionDigits: 3 });
+}

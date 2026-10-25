@@ -19,6 +19,7 @@ async function init(){
   await loadConfig();
   await loadMenu();
   await loadPromotions();
+  await loadIngredientsAndRecipes();
 
   render();
 }

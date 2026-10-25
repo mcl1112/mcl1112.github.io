@@ -67,6 +67,7 @@ async function handleSignup(){
   state.view = 'customer';
   state.step = 1;
   render();
+  refreshStockInBackground();
 }
 
 async function handleLogin(){
@@ -87,6 +88,7 @@ async function handleLogin(){
   state.view = 'customer';
   state.step = 1;
   render();
+  refreshStockInBackground();
 }
 
 function traduzErroAuth(error){
