@@ -247,7 +247,7 @@ main { padding: 16px; }
   overflow: hidden; box-shadow: inset 0 4px 12px rgba(0,0,0,0.3);
   display: flex; align-items: center; justify-content: center;
 }
-.fry-scene img, .fry-scene video { width: 100%; height: 100%; object-fit: cover; mix-blend-mode: overlay; }
+.fry-scene img, .fry-scene video { width: 100%; height: 100%; object-fit: cover; }
 .fry-pastel {
   position: absolute; font-size: 42px;
   animation: sizzle 0.8s ease-in-out infinite alternate;
