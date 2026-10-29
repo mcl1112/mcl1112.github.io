@@ -18,16 +18,18 @@ function customerHeader(activeLabel){
 }
 
 function viewCustomer(){
+  const building = state.step === 1 && state.builderOpen;
   return `
     ${customerHeader()}
     <main>
-      ${state.step < 4 ? stepsNav() : ''}
-      ${state.step === 1 ? stepMenu() : ''}
+      ${state.step < 4 && !building ? stepsNav() : ''}
+      ${building ? viewBuilder() : ''}
+      ${state.step === 1 && !building ? stepMenu() : ''}
       ${state.step === 2 ? stepCart() : ''}
       ${state.step === 3 ? stepSlots() : ''}
       ${state.step === 4 ? stepConfirm() : ''}
     </main>
-    ${state.step === 1 && cartCount() > 0 ? floatCartBar() : ''}
+    ${state.step === 1 && !building && cartCount() > 0 ? floatCartBar() : ''}
   `;
 }
 
@@ -71,7 +73,9 @@ function stepMenu(){
       </div>
     </div>
 
-    ${activeItems.length === 0 ? `
+    ${customEntryCardHtml()}
+
+    ${activeItems.length === 0 && !customStockAvailable() ? `
       <div style="text-align:center; padding:30px 10px; color:var(--text-muted);">
         <div style="font-size:40px; margin-bottom:8px;">😅</div>
         <b>Estamos sem itens disponíveis no momento.</b><br>
@@ -168,6 +172,7 @@ function changeQty(id, delta){
 
 function goStep(n){
   state.step = n;
+  state.builderOpen = false;
   if(n === 3) prepSlotsStep();
   else {
     render();
@@ -178,7 +183,7 @@ function goStep(n){
 function stepCart(){
   const items = cartItems();
   const t = calcTotals();
-  if(items.length === 0){
+  if(items.length === 0 && state.customCart.length === 0){
     return `
       <div style="text-align: center; padding: 40px 10px;">
         <div style="font-size: 50px; margin-bottom: 10px;">🛒</div>
@@ -201,6 +206,20 @@ function stepCart(){
           <div style="text-align: right;">
             <div style="font-weight: 800;">${money(i.price * i.qty)}</div>
             <button style="background: none; color: var(--brand-red); font-size: 11px; font-weight: 700;" onclick="changeQty('${i.id}', -${i.qty})">remover</button>
+          </div>
+        </div>
+      `).join('')}
+
+      ${state.customCart.map(l => `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px dashed var(--line); gap:10px;">
+          <div style="min-width:0;">
+            <div style="font-weight: 700; font-size: 14px;">🧑‍🍳 ${escapeHtml(customLineLabel(l))}</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top:2px;">${customLineIngredientNames(l).map(escapeHtml).join(', ')}</div>
+            <div style="font-size: 12px; color: var(--text-muted);">${l.qty}x ${money(customUnitPrice(l.sizeId, l.ingredientIds))}</div>
+          </div>
+          <div style="text-align: right; flex:none;">
+            <div style="font-weight: 800;">${money(customLineTotal(l))}</div>
+            <button style="background: none; color: var(--brand-red); font-size: 11px; font-weight: 700;" onclick="removeCustomLine('${l.uid}')">remover</button>
           </div>
         </div>
       `).join('')}
@@ -340,11 +359,12 @@ async function submitOrder(){
   }
 
   const items = cartItems();
+  const customLines = state.customCart.map(l => ({ ...l, ingredientIds: [...l.ingredientIds] }));
   const t = calcTotals();
 
   // Dá baixa no estoque ANTES de gravar o pedido. A conta é feita dentro do
   // banco, numa transação só: se faltar qualquer coisa, nada é baixado.
-  const stockErr = await consumeStock(items);
+  const stockErr = await consumeStock(items, customLines);
   if(stockErr){
     if(isStockShortage(stockErr)){
       alert('Ops! Algum item do seu pedido acabou de esgotar. Já ajustamos a sua sacola.');
@@ -373,7 +393,10 @@ async function submitOrder(){
     code,
     customerName: state.customer.name.trim(),
     phone: state.customer.phone.trim(),
-    items: items.map(i=>({name:i.name, qty:i.qty, price:i.price})),
+    items: [
+      ...items.map(i=>({name:i.name, qty:i.qty, price:i.price})),
+      ...customLines.map(customOrderItem)
+    ],
     subtotal: t.subtotal,
     discount: t.discount,
     total: t.total,
@@ -388,7 +411,7 @@ async function submitOrder(){
 
   const err = await insertOrder(order);
   if(err){
-    await restoreStock(items); // devolve o que foi baixado
+    await restoreStock(items, customLines); // devolve o que foi baixado
     alert('Não foi possível registrar o pedido. Tente novamente.');
     if(btn){ btn.disabled = false; btn.textContent = `Confirmar Pedido • ${money(t.total)}`; }
     return;
@@ -398,6 +421,7 @@ async function submitOrder(){
   state.lastOrder = order;
   state.step = 4;
   state.cart = {};
+  state.customCart = [];
   playSoundEffect('chime');
   render();
 }
@@ -428,7 +452,7 @@ function stepConfirm(){
       <h4 style="margin-bottom: 8px;">Detalhes do Pedido</h4>
       ${o.items.map(i=>`
         <div style="display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0;">
-          <span>${i.qty}x ${i.name}</span><span>${money(i.price*i.qty)}</span>
+          <span>${escapeHtml(orderItemText(i))}</span><span>${money(i.price*i.qty)}</span>
         </div>
       `).join('')}
       <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); font-weight: 800; display: flex; justify-content: space-between;">

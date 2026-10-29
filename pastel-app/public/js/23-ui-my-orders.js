@@ -43,7 +43,7 @@ function myOrderCard(o){
         </div>
         <span class="status-badge st-${o.status}">${STATUS_LABEL[o.status] || o.status}</span>
       </div>
-      <div style="font-size:13px; margin-bottom:8px;">${o.items.map(i=>`${i.qty}x ${i.name}`).join(', ')}</div>
+      <div style="font-size:13px; margin-bottom:8px;">${o.items.map(i => escapeHtml(orderItemText(i))).join(' • ')}</div>
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <span style="font-weight:800;">${money(o.total)}</span>
         <span class="status-badge" style="background:${o.paymentStatus==='pago'?'#DCFCE7':'#FEF3C7'}; color:${o.paymentStatus==='pago'?'#16A34A':'#D97706'};">

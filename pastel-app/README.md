@@ -15,7 +15,11 @@ pastel-app/
 │   ├── schema.sql                                  -> schema original (rode primeiro, se ainda não rodou)
 │   ├── migration-contas-pix-descontos-avaliacoes.sql -> rode depois do schema.sql
 │   ├── migration-tipo-chave-pix.sql                  -> tipo da chave Pix
-│   └── migration-estoque.sql                         -> NOVO: estoque (rode por último)
+│   ├── migration-estoque.sql                         -> estoque
+│   ├── seed-ingredientes-e-receitas.sql              -> (opcional) receitas por pastel, modo "Por receita"
+│   ├── ativar-estoque-por-receita.sql                -> (opcional) só para o modo "Por receita"
+│   ├── migration-personalizado.sql                   -> NOVO: pastel personalizado (rode depois do estoque)
+│   └── seed-pastel-personalizado.sql                 -> NOVO: tamanhos + catálogo de ingredientes sugerido
 └── public/
     ├── index.html
     ├── style.css
@@ -33,18 +37,21 @@ pastel-app/
         ├── 09-data-orders.js         -> pedidos + status de pagamento
         ├── 10-data-reviews.js        -> avaliações
         ├── 11-data-stock.js          -> estoque: ingredientes, receitas, disponibilidade, baixa
+        ├── 12-data-custom.js         -> pastel personalizado: tamanhos, preço, consumo, disponibilidade
         ├── 15-ui-shared.js           -> helper de imagem com fallback
         ├── 20-ui-login.js            -> escolha cliente/equipe
         ├── 21-ui-customer-auth.js    -> tela de login/cadastro do cliente
         ├── 22-ui-customer.js         -> cardápio → sacola → horário → confirmação (+ Pix)
         ├── 23-ui-my-orders.js        -> "Meus Pedidos" + avaliação
+        ├── 24-ui-custom-builder.js   -> "Monte o seu pastel" (cliente)
         ├── 30-ui-employee-shell.js   -> portão de acesso + abas da equipe
         ├── 31-ui-employee-orders.js  -> aba Pedidos (+ confirmar Pix)
         ├── 32-ui-employee-menu.js    -> aba Cardápio
         ├── 33-ui-employee-discounts.js -> aba Descontos (NOVA)
         ├── 34-ui-employee-reviews.js -> aba Avaliação (NOVA)
         ├── 35-ui-employee-config.js  -> aba Config (+ chave Pix)
-        ├── 36-ui-employee-stock.js   -> aba Estoque (NOVA)
+        ├── 36-ui-employee-stock.js   -> aba Estoque (Produtos e Ingredientes)
+        ├── 37-ui-employee-stock-custom.js -> aba Estoque > Personalizado
         └── 99-app.js                 -> roteador de telas + inicialização
 ```
 
@@ -155,6 +162,61 @@ Como o sistema se comporta:
 - Receita **sem ingredientes** não trava a venda (o card mostra "Receita vazia" pra você lembrar).
 - Ingrediente usado em alguma receita não pode ser excluído (evita receitas "furadas").
 - Nesta versão **não existe cancelamento de pedido**; quando existir, é ele quem devolve o estoque.
+
+## 9. Receitas sugeridas dos 6 pastéis
+
+Rode `supabase/seed-ingredientes-e-receitas.sql` **uma vez** (depois do `migration-estoque.sql`).
+Ele cadastra 11 ingredientes com estoque **zero** e as receitas abaixo, **sem ligar o controle**
+(o cardápio dos clientes não muda). Pastéis que não existirem no cardápio (camarão, carne seca
+com queijo) são criados **desativados e com preço 0** — defina o preço em Cardápio e ative.
+
+Depois: (1) coloque as quantidades reais em Estoque > Ingredientes; (2) rode
+`supabase/ativar-estoque-por-receita.sql` (ou ligue produto a produto em Estoque > Produtos).
+
+Quantidade por **1 pastel** (todos levam 1 disco de massa). Pesos de compra, crus:
+
+| Pastel | Recheio |
+|---|---|
+| Carne | 50 g carne moída · 10 g cebola · 6 g azeitona |
+| Queijo | 70 g mussarela |
+| Frango c/ catupiry | 70 g peito de frango · 30 g catupiry · 8 g cebola |
+| Camarão | 40 g camarão limpo · 8 g cebola · 15 g tomate |
+| Carne seca c/ queijo | 45 g carne seca · 35 g mussarela · 10 g cebola |
+| Pizza | 45 g mussarela · 30 g presunto · 20 g tomate |
+
+São **estimativas** para pastel de feira médio (60 a 95 g de recheio). Pese uma fornada sua e
+ajuste na aba Estoque. Temperos, óleo e cheiro-verde não são controlados (custo pequeno e
+difícil de medir por unidade). Mussarela, cebola e tomate são compartilhados entre receitas.
+Referência de massa: 1 kg rende cerca de 15 pastéis de tamanho comercial.
+
+## 10. Pastéis prontos e Pastel Personalizado
+
+**Ordem dos SQLs (Supabase > SQL Editor):** `migration-estoque.sql` → `migration-personalizado.sql`
+→ `seed-pastel-personalizado.sql` (opcional, recomendado).
+
+### Pastéis prontos = estoque direto (igual à Coca)
+Em **Estoque > Produtos > Controlar estoque > Estoque direto**, informe quantos pastéis prontos você tem.
+Cada venda tira 1; ao zerar o pastel some do cardápio. Na produção do dia use **+ Repor** (atalhos 10, 24, 50)
+e **Retirar** para perdas. Não precisa de receita para isso.
+
+### Pastel Personalizado (o cliente monta)
+No cardápio aparece o cartão **"Monte o seu pastel"**: o cliente escolhe **tamanho** (Pequeno/Médio/Grande)
+e **recheios**. A pessoa vê só o que tem estoque; ingrediente zerado some da montagem.
+
+- **Preço** = preço base do tamanho + adicional de cada recheio (o adicional também é multiplicado pelo fator do tamanho).
+- **Baixa** = massa do tamanho + porção de cada recheio × fator (ex.: Pequeno ×0,6, Grande ×1,5).
+  Acontece no banco, numa transação só, junto com os outros itens do pedido (receitas e prontos somam o consumo).
+- A cozinha vê os recheios escolhidos na aba **Pedidos** e o cliente em **Meus Pedidos**.
+- Combos/promoções: o personalizado conta na categoria **"Personalizado"** (ex.: "2 personalizados + 1 bebida").
+
+Configuração em **Estoque > Personalizado**: ligar/desligar, qual ingrediente é a **massa**, **tamanhos**
+(preço base, fator, massa gasta) e, para cada ingrediente, se aparece para o cliente, categoria, **porção no médio**
+e **adicional de preço**. Para um ingrediente novo (ex.: Nutella): cadastre em Ingredientes, depois configure aqui.
+Os preços e porções do seed são **sugestões** — ajuste ao seu custo.
+
+### Aba Estoque (visual)
+Resumo no topo (Em falta · Acabando · No cardápio), barras de nível por cor, ícones por ingrediente, busca,
+e o que precisa repor aparece primeiro na lista de ingredientes.
 
 ## 7. Gerar o APK (sem mudanças em relação a antes)
 

@@ -63,7 +63,16 @@ let state = {
   addingItem: false,
   editingPromoId: null,
   addingPromo: false,
-  stockView: 'produtos',      // aba Estoque: 'produtos' | 'ingredientes'
+  customSettings: { active: false, doughId: null },  // pastel personalizado: ligado? qual ingrediente é a massa
+  customSizes: [],            // [{id, name, basePrice, factor, doughQty, sort}]
+  customCart: [],             // sacola: [{uid, sizeId, ingredientIds: [], qty}]
+  builderOpen: false,         // cliente: montando o pastel?
+  builder: { sizeId: null, ingredientIds: [], qty: 1 },
+  stockSearch: '',            // aba Estoque: busca
+  editingCustomIngId: null,   // aba Estoque > Personalizado
+  editingSizes: false,
+  sizesDraft: null,
+  stockView: 'produtos',      // aba Estoque: 'produtos' | 'ingredientes' | 'personalizado'
   addingIngredient: false,
   editingIngredientId: null,
   restocking: null,           // { kind: 'ingredient' | 'item', id }

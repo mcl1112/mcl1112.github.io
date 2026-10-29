@@ -33,3 +33,18 @@ function showToast(msg){
   setTimeout(() => el.classList.add('toast-hide'), 2600);
   setTimeout(() => el.remove(), 3100);
 }
+
+// Emoji para cada ingrediente (pelo nome), só pra deixar as telas mais bonitas
+function ingredientEmoji(name){
+  const n = String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const map = [
+    ['camar', '🍤'], ['frango', '🍗'], ['calabresa', '🌭'], ['bacon', '🥓'], ['presunto', '🍖'],
+    ['carne', '🥩'], ['catupiry', '🧀'], ['requeijao', '🧀'], ['queijo', '🧀'], ['mussarela', '🧀'],
+    ['tomate', '🍅'], ['cebola', '🧅'], ['azeitona', '🫒'], ['milho', '🌽'], ['palmito', '🌴'],
+    ['ovo', '🥚'], ['cheiro', '🌿'], ['oregano', '🌿'], ['banana', '🍌'], ['chocolate', '🍫'],
+    ['goiabada', '🍬'], ['canela', '🟤'], ['acucar', '🍚'], ['massa', '🫓'], ['oleo', '🛢️'],
+    ['coca', '🥤'], ['refri', '🥤'], ['cana', '🥤'], ['suco', '🧃'], ['agua', '💧']
+  ];
+  for(const [key, emoji] of map){ if(n.includes(key)) return emoji; }
+  return '🥣';
+}

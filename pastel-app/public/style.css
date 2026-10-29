@@ -194,7 +194,7 @@ main { padding: 16px; }
 }
 .food-details { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
 .food-name { font-size: 15px; font-weight: 700; color: var(--text-main); margin-bottom: 2px; }
-.food-desc { font-size: 12px; color: var(--text-muted); line-height: 1.3; margin-bottom: 6px; display: -webkit-box; -webkit-line: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.food-desc { font-size: 12px; color: var(--text-muted); line-height: 1.3; margin-bottom: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .food-bottom { display: flex; justify-content: space-between; align-items: center; }
 .food-price { font-size: 15px; font-weight: 800; color: var(--text-main); }
 
@@ -247,7 +247,7 @@ main { padding: 16px; }
   overflow: hidden; box-shadow: inset 0 4px 12px rgba(0,0,0,0.3);
   display: flex; align-items: center; justify-content: center;
 }
-.fry-scene img, .fry-scene video { width: 100%; height: 100%; object-fit: cover; }
+.fry-scene img, .fry-scene video { width: 100%; height: 100%; object-fit: cover; opacity: 0.35; mix-blend-mode: overlay; }
 .fry-pastel {
   position: absolute; font-size: 42px;
   animation: sizzle 0.8s ease-in-out infinite alternate;
@@ -335,3 +335,116 @@ main { padding: 16px; }
   box-shadow: 0 6px 18px rgba(0,0,0,0.3); animation: slideUp 0.25s ease;
 }
 .toast-hide { opacity: 0; transition: opacity 0.4s; }
+
+/* ============================================================
+   ESTOQUE — visual novo
+   ============================================================ */
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+.stat-tile { background: #FFF; border: 1px solid var(--line); border-radius: 14px; padding: 12px 8px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+.stat-num { font-family: 'Fredoka'; font-size: 26px; font-weight: 700; line-height: 1.1; color: var(--text-main); }
+.stat-num small { font-size: 13px; color: var(--text-muted); font-weight: 600; }
+.stat-label { font-size: 11px; font-weight: 700; color: var(--text-muted); margin-top: 2px; }
+.stat-tile.tone-out { background: #FEF2F2; border-color: #FECACA; }
+.stat-tile.tone-out .stat-num { color: #DC2626; }
+.stat-tile.tone-low { background: #FFFBEB; border-color: #FDE68A; }
+.stat-tile.tone-low .stat-num { color: #D97706; }
+.stat-tile.tone-ok { background: #F0FDF4; border-color: #BBF7D0; }
+.stat-tile.tone-ok .stat-num { color: #16A34A; }
+
+.seg { display: flex; gap: 4px; background: #E5E7EB; padding: 4px; border-radius: 14px; margin-bottom: 14px; }
+.seg-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; padding: 9px 4px; border-radius: 10px; background: transparent; font-size: 12.5px; font-weight: 700; color: var(--text-muted); }
+.seg-btn span { font-size: 15px; }
+.seg-btn.active { background: #FFF; color: var(--text-main); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+
+.search { width: 100%; padding: 11px 14px; border-radius: 12px; border: 1.5px solid var(--line); background: #FFF; font-size: 14px; font-family: inherit; margin-bottom: 12px; }
+.search:focus { border-color: var(--brand-red); }
+.plain-select { width: 100%; padding: 11px; border-radius: 10px; border: 1.5px solid var(--line); background: #FFF; font-size: 14px; font-family: inherit; }
+
+.s-group { display: flex; align-items: center; gap: 8px; font-family: 'Fredoka'; font-size: 15px; font-weight: 600; color: var(--text-main); margin: 18px 0 8px; }
+.s-group span { background: #E5E7EB; color: var(--text-muted); font-family: 'Plus Jakarta Sans'; font-size: 11px; font-weight: 800; padding: 1px 8px; border-radius: 10px; }
+
+.s-card { display: flex; gap: 12px; background: #FFF; border: 1px solid var(--line); border-left: 5px solid #D1D5DB; border-radius: 14px; padding: 12px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+.s-card.tone-ok { border-left-color: #22C55E; }
+.s-card.tone-low { border-left-color: #F59E0B; }
+.s-card.tone-out { border-left-color: #EF4444; background: #FFFAFA; }
+.s-card.tone-warn { border-left-color: #F59E0B; }
+.s-icon { width: 46px; height: 46px; border-radius: 14px; background: #F3F4F6; display: flex; align-items: center; justify-content: center; font-size: 24px; flex: none; }
+.s-main { flex: 1; min-width: 0; }
+.s-title { font-weight: 800; font-size: 14.5px; color: var(--text-main); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.s-qty { font-size: 13px; color: var(--text-main); margin-top: 2px; }
+.s-qty b { font-family: 'Fredoka'; font-size: 17px; }
+.s-sub { color: var(--text-muted); font-size: 12px; font-weight: 600; }
+.s-tag { font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 10px; background: #F3F4F6; color: #6B7280; }
+.s-tag.ok { background: #DCFCE7; color: #16A34A; }
+.s-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-top: 10px; }
+
+.bar { height: 8px; background: #F3F4F6; border-radius: 6px; overflow: hidden; margin-top: 8px; }
+.bar-fill { display: block; height: 100%; border-radius: 6px; transition: width .3s ease; }
+.bar-fill.ok { background: linear-gradient(90deg, #4ADE80, #22C55E); }
+.bar-fill.low { background: linear-gradient(90deg, #FBBF24, #F59E0B); }
+.bar-fill.out { background: #EF4444; }
+
+.restock-box { margin-top: 10px; background: #F9FAFB; border: 1px dashed #D1D5DB; border-radius: 12px; padding: 10px; }
+.restock-chips { display: flex; gap: 6px; margin-bottom: 8px; }
+.chip-mini { padding: 5px 12px; border-radius: 16px; border: 1.5px solid var(--line); background: #FFF; font-size: 12px; font-weight: 800; color: var(--text-main); }
+.chip-mini:active { background: #FEE2E2; border-color: var(--brand-red); }
+
+.size-row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px dashed var(--line); font-size: 13px; }
+.size-row-name { font-weight: 800; }
+.size-row-info { color: var(--text-muted); text-align: right; }
+.size-form { border-top: 1px dashed var(--line); padding-top: 10px; margin-top: 4px; }
+.size-form-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.check-row { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; margin-bottom: 14px; }
+.check-row input { width: 20px; height: 20px; accent-color: var(--brand-red); }
+
+/* ============================================================
+   CLIENTE — Monte o seu pastel
+   ============================================================ */
+.custom-entry { width: 100%; display: flex; align-items: center; gap: 14px; text-align: left; padding: 16px; margin-bottom: 18px; border-radius: 18px; color: #FFF;
+  background: linear-gradient(135deg, #EA1D2C 0%, #FF6A3D 100%); box-shadow: 0 8px 22px rgba(234, 29, 44, 0.35); }
+.custom-entry:active { transform: scale(0.98); }
+.custom-entry-emoji { font-size: 38px; flex: none; }
+.custom-entry-text { flex: 1; min-width: 0; }
+.custom-entry-text h3 { color: #FFF; font-size: 18px; margin-bottom: 2px; }
+.custom-entry-text p { font-size: 12.5px; opacity: 0.92; line-height: 1.35; margin-bottom: 6px; }
+.custom-entry-price { display: inline-block; background: rgba(255,255,255,0.22); padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 800; }
+.custom-entry-go { font-size: 22px; font-weight: 800; flex: none; }
+
+.builder { padding-bottom: 110px; }
+.builder-back { padding: 4px 0 10px; font-size: 13px; }
+.builder-hero { display: flex; align-items: center; gap: 12px; background: linear-gradient(135deg, #1F2937, #111827); color: #FFF; border-radius: 18px; padding: 16px; margin-bottom: 18px; }
+.builder-hero-emoji { font-size: 40px; }
+.builder-hero h2 { color: #FFF; font-size: 21px; }
+.builder-hero p { font-size: 12.5px; color: #D1D5DB; margin-top: 2px; }
+.b-step { display: flex; align-items: center; gap: 10px; margin: 18px 0 10px; }
+.b-step h3 { font-size: 16px; }
+.b-num { width: 26px; height: 26px; border-radius: 50%; background: var(--brand-red); color: #FFF; display: flex; align-items: center; justify-content: center; font-family: 'Fredoka'; font-weight: 700; font-size: 14px; }
+
+.size-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.size-card { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; padding: 12px 4px; min-height: 104px; border-radius: 16px; background: #FFF; border: 2px solid var(--line); }
+.size-card.selected { border-color: var(--brand-red); background: #FEF2F2; box-shadow: 0 4px 14px rgba(234, 29, 44, 0.18); }
+.size-card.disabled { opacity: 0.45; }
+.size-name { font-weight: 800; font-size: 14px; }
+.size-price { font-size: 11px; font-weight: 700; color: var(--text-muted); }
+
+.chip-group { margin-bottom: 14px; }
+.chip-group-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-muted); margin-bottom: 8px; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 9px 13px; border-radius: 22px; background: #FFF; border: 1.5px solid var(--line); font-size: 13px; font-weight: 700; color: var(--text-main); }
+.chip small { font-size: 11px; font-weight: 800; color: var(--text-muted); }
+.chip.selected { background: var(--brand-red); border-color: var(--brand-red); color: #FFF; }
+.chip.selected small { color: rgba(255,255,255,0.85); }
+.chip.disabled { opacity: 0.4; cursor: not-allowed; }
+.chip-emoji { font-size: 16px; }
+
+.builder-summary { background: #FFF; border: 2px dashed #D1D5DB; border-radius: 16px; padding: 14px; margin-top: 18px; }
+.builder-summary-title { font-family: 'Fredoka'; font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+.builder-summary-list { font-size: 13.5px; line-height: 1.5; }
+
+.builder-bar { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); width: calc(100% - 32px); max-width: 468px;
+  display: flex; align-items: center; gap: 10px; background: #FFF; border-radius: 18px; padding: 10px 12px; z-index: 40;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.25); border: 1px solid var(--line); }
+.builder-bar-price { flex: 1; min-width: 0; line-height: 1.15; }
+.builder-bar-price small { display: block; font-size: 11px; color: var(--text-muted); font-weight: 700; }
+.builder-bar-price b { font-family: 'Fredoka'; font-size: 20px; color: var(--brand-red); }
+.builder-bar .btn { padding: 12px 18px; }

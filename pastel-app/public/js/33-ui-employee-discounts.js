@@ -5,6 +5,7 @@ const PROMO_TYPE_LABEL = { combo: 'Combo (categoria + categoria)', percent: 'Des
 
 function empDiscountsTab(){
   const cats = [...new Set(state.menu.map(m => m.cat))];
+  if(state.customSizes.length > 0 && !cats.includes(CUSTOM_CAT)) cats.push(CUSTOM_CAT);
   return `
     <button class="btn btn-primary btn-block" style="margin-bottom: 14px;" onclick="startAddPromo()">+ Nova Promoção</button>
 

@@ -17,7 +17,7 @@ function viewLogin(){
         <p>Escolha seus pastéis recheados favoritos, defina o horário de retirada e evite esperar no balcão.</p>
         <div class="fry-scene">
           ${renderVideoHtml('assets/videos/banner-destaque.mp4', '🥟')}
-          <div class="fry-pastel"></div>
+          <div class="fry-pastel">🥟</div>
         </div>
       </div>
 
@@ -63,6 +63,8 @@ function backToLogin(){
   state.view = 'login';
   state.step = 1;
   state.cart = {};
+  state.customCart = [];
+  state.builderOpen = false;
   stopOrdersRealtime();
   render();
 }

@@ -43,18 +43,24 @@ function cartItems(){
     .map(([id,qty]) => ({...state.menu.find(m=>m.id===id), qty}))
     .filter(i => i.id);
 }
-function cartCount(){ return cartItems().reduce((s,i)=>s+i.qty,0); }
+function cartCount(){ return cartItems().reduce((s,i)=>s+i.qty,0) + customCartCount(); }
 
 function calcTotals(){
   const items = cartItems();
-  const subtotal = items.reduce((s,i)=>s+i.price*i.qty,0);
+  const subtotal = round2(
+    items.reduce((s,i)=>s+i.price*i.qty,0) +
+    state.customCart.reduce((s,l)=>s+customLineTotal(l),0)
+  );
+  // quantidade por categoria (o pastel personalizado conta na categoria "Personalizado")
+  const catQty = cat =>
+    items.filter(i=>i.cat===cat).reduce((s,i)=>s+i.qty,0) + (cat === CUSTOM_CAT ? customCartCount() : 0);
   let discount = 0;
   const applied = [];
 
   (state.promotions || []).filter(p => p.active !== false).forEach(promo => {
     if(promo.type === 'combo' && promo.cat_a && promo.cat_b && promo.qty_a && promo.qty_b){
-      const qtyA = items.filter(i=>i.cat===promo.cat_a).reduce((s,i)=>s+i.qty,0);
-      const qtyB = items.filter(i=>i.cat===promo.cat_b).reduce((s,i)=>s+i.qty,0);
+      const qtyA = catQty(promo.cat_a);
+      const qtyB = catQty(promo.cat_b);
       const combos = Math.min(Math.floor(qtyA/promo.qty_a), Math.floor(qtyB/promo.qty_b));
       if(combos > 0){
         const amount = combos * promo.value;

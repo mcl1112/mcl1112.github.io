@@ -25,7 +25,7 @@ function empOrdersTab(){
         </div>
         <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Retirada: <b>${o.pickupLabel}</b> • Tel: ${o.phone}</div>
         <div style="font-size: 13px; font-weight: 600; margin-bottom: 10px;">
-          ${o.items.map(i => `${i.qty}x ${i.name}`).join(', ')}
+          ${o.items.map(i => escapeHtml(orderItemText(i))).join(' • ')}
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
           <span style="font-weight: 800;">${money(o.total)}</span>

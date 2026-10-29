@@ -51,6 +51,7 @@ function shouldLiveRender(){
   if(state.addingPromo || state.editingPromoId) return false;
   if(state.addingIngredient || state.editingIngredientId) return false;
   if(state.restocking || state.editingStockItemId) return false;
+  if(state.editingCustomIngId || state.editingSizes) return false;
   return true;
 }
 

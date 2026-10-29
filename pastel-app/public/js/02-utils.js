@@ -65,3 +65,13 @@ function fmtQty(n){
   if(!isFinite(v)) return '∞';
   return v.toLocaleString('pt-BR', { maximumFractionDigits: 3 });
 }
+
+function round2(n){ return Math.round(Number(n) * 100) / 100; }
+
+// Texto de um item de pedido. Pastel personalizado mostra os recheios escolhidos.
+function orderItemText(i){
+  if(i.custom && Array.isArray(i.custom.ingredients) && i.custom.ingredients.length > 0){
+    return `${i.qty}x ${i.name} (${i.custom.ingredients.join(', ')})`;
+  }
+  return `${i.qty}x ${i.name}`;
+}

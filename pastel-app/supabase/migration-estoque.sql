@@ -1,3 +1,6 @@
+-- >>> Se você já rodou o migration-personalizado.sql, NÃO rode este arquivo de novo:
+-- >>> ele recriaria a versão antiga de consume_stock/restore_stock. (Se rodar, rode o
+-- >>> migration-personalizado.sql de novo logo em seguida.)
 -- ============================================================
 -- MIGRAÇÃO: ESTOQUE (ingredientes, receitas e revenda)
 -- Rode no SQL Editor do Supabase depois das migrações anteriores.

@@ -1,23 +1,28 @@
 // ============================================================
 // EQUIPE: ABA ESTOQUE
-//   Produtos     -> como cada item do cardápio baixa o estoque
-//   Ingredientes -> o que você tem guardado (massa, carne, camarão...)
+//   Produtos       -> como cada item do cardápio baixa o estoque
+//   Ingredientes   -> o que você tem guardado (massa, carne, camarão...)
+//   Personalizado  -> pastel que o cliente monta (ver 37-ui-employee-stock-custom.js)
 // ============================================================
 const STOCK_UNITS = ['g', 'kg', 'ml', 'L', 'un'];
 
 function empStockTab(){
+  const v = state.stockView;
   return `
-    <div class="pill-row">
-      <button class="pill ${state.stockView==='produtos'?'active':''}" onclick="setStockView('produtos')">Produtos</button>
-      <button class="pill ${state.stockView==='ingredientes'?'active':''}" onclick="setStockView('ingredientes')">Ingredientes</button>
+    ${stockSummaryHtml()}
+    <div class="seg">
+      <button class="seg-btn ${v==='produtos'?'active':''}" onclick="setStockView('produtos')"><span>🥟</span>Produtos</button>
+      <button class="seg-btn ${v==='ingredientes'?'active':''}" onclick="setStockView('ingredientes')"><span>🧂</span>Ingredientes</button>
+      <button class="seg-btn ${v==='personalizado'?'active':''}" onclick="setStockView('personalizado')"><span>🧑‍🍳</span>Personalizado</button>
     </div>
-    ${state.stockView === 'produtos' ? stockProductsView() : stockIngredientsView()}
+    ${v === 'produtos' ? stockProductsView() : v === 'ingredientes' ? stockIngredientsView() : stockCustomView()}
   `;
 }
 
 function setStockView(v){
   playSoundEffect('pop');
   state.stockView = v;
+  state.stockSearch = '';
   closeStockForms();
   render();
 }
@@ -27,73 +32,151 @@ function closeStockForms(){
   state.restocking = null;
   state.editingStockItemId = null;
   state.stockDraft = null;
+  state.editingCustomIngId = null;
+  state.editingSizes = false;
+  state.sizesDraft = null;
+}
+
+// ------------------------------------------------------------
+// NÍVEIS (cores e barrinhas)
+// ------------------------------------------------------------
+// n = quantas unidades/pastéis ainda dá pra fazer. null = sem referência.
+function levelOf(n){
+  if(n === null || n === undefined) return { tone: 'none', pct: 0 };
+  if(n < 1) return { tone: 'out', pct: 3 };
+  const pct = Math.min(100, Math.max(6, n));
+  return { tone: n <= 10 ? 'low' : 'ok', pct };
+}
+function barHtml(level){
+  if(level.tone === 'none' || level.tone === 'warn') return '';
+  return `<div class="bar"><i class="bar-fill ${level.tone}" style="width:${level.pct}%"></i></div>`;
+}
+
+function mediumSize(){
+  if(state.customSizes.length === 0) return null;
+  return [...state.customSizes].sort((a, b) => Math.abs(a.factor - 1) - Math.abs(b.factor - 1))[0];
+}
+
+// Quantos pastéis dá pra fazer só com esse ingrediente (estimativa; null = não dá pra saber)
+function ingredientServings(ing){
+  const bases = [];
+  if(ing.customEnabled && ing.customPortion > 0) bases.push(ing.customPortion);
+  state.recipes.filter(r => r.ingredientId === ing.id).forEach(r => bases.push(r.quantity));
+  if(ing.id === state.customSettings.doughId && mediumSize()) bases.push(mediumSize().doughQty);
+  const basis = Math.max(0, ...bases);
+  if(!(basis > 0)) return null;
+  return Math.floor(ing.stock / basis + STOCK_EPS);
+}
+function ingredientLevel(ing){
+  const n = ingredientServings(ing);
+  if(n !== null) return levelOf(n);
+  return ing.stock <= 0 ? { tone: 'out', pct: 3 } : { tone: 'none', pct: 0 };
+}
+
+function matchesSearch(name){
+  const q = String(state.stockSearch || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  if(!q) return true;
+  return String(name).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(q);
+}
+function onStockSearch(el){
+  const pos = el.selectionStart;
+  state.stockSearch = el.value;
+  render();
+  const again = document.getElementById('stock-search');
+  if(again){ again.focus(); try{ again.setSelectionRange(pos, pos); }catch(e){} }
+}
+function searchBoxHtml(placeholder){
+  return `<input id="stock-search" class="search" type="search" placeholder="${placeholder}"
+            value="${escapeHtml(state.stockSearch)}" oninput="onStockSearch(this)">`;
+}
+
+// ------------------------------------------------------------
+// RESUMO NO TOPO
+// ------------------------------------------------------------
+function stockSummaryHtml(){
+  let out = 0, low = 0;
+  state.ingredients.forEach(ing => {
+    const t = ingredientLevel(ing).tone;
+    if(t === 'out') out++; else if(t === 'low') low++;
+  });
+  state.menu.filter(m => m.active !== false).forEach(m => {
+    if(!itemIsTracked(m)) return;
+    const n = maxProducible(m);
+    if(n < 1) out++; else if(isFinite(n) && n <= 10) low++;
+  });
+  const selling = visibleMenuItems().length;
+  const total = state.menu.filter(m => m.active !== false).length;
+  return `
+    <div class="stat-row">
+      <div class="stat-tile ${out > 0 ? 'tone-out' : ''}">
+        <div class="stat-num">${out}</div><div class="stat-label">⛔ Em falta</div>
+      </div>
+      <div class="stat-tile ${low > 0 ? 'tone-low' : ''}">
+        <div class="stat-num">${low}</div><div class="stat-label">⚠️ Acabando</div>
+      </div>
+      <div class="stat-tile tone-ok">
+        <div class="stat-num">${selling}<small>/${total}</small></div><div class="stat-label">✅ No cardápio</div>
+      </div>
+    </div>
+  `;
 }
 
 // ------------------------------------------------------------
 // PRODUTOS
 // ------------------------------------------------------------
 function stockProductsView(){
+  const items = state.menu.filter(m => matchesSearch(m.name));
+  const cats = [...new Set(items.map(m => m.cat))];
   return `
     <div class="info-banner">
-      Escolha como cada produto baixa o estoque: <b>pastéis</b> usam <b>receita</b> (ingredientes),
-      <b>bebidas de revenda</b> usam <b>estoque direto</b>. Quando não der mais pra fazer
-      1 unidade, o item some do cardápio do cliente sozinho e volta quando você repor.
+      <b>Pastéis prontos e bebidas</b>: use <b>Estoque direto</b> — cada venda tira 1 unidade, igual à Coca.
+      Quando chegar a zero, o item some do cardápio do cliente sozinho e volta quando você repor.
+      (O pastel que o cliente monta é configurado na aba <b>Personalizado</b>.)
     </div>
+    ${searchBoxHtml('Buscar produto...')}
     ${state.menu.length === 0 ? `<div class="muted" style="text-align:center; padding:20px;">Cadastre produtos na aba Cardápio primeiro.</div>` : ''}
-    ${state.menu.map(item => state.editingStockItemId === item.id ? stockProductForm(item) : stockProductCard(item)).join('')}
+    ${cats.map(cat => `
+      <div class="s-group">${escapeHtml(cat)} <span>${items.filter(m => m.cat === cat).length}</span></div>
+      ${items.filter(m => m.cat === cat).map(item => state.editingStockItemId === item.id ? stockProductForm(item) : stockProductCard(item)).join('')}
+    `).join('')}
   `;
-}
-
-function stockStatusBadge(item){
-  const mode = item.stockMode || 'none';
-  const gray = 'background:#F3F4F6; color:#6B7280;';
-  if(mode === 'none') return `<span class="status-badge" style="${gray}">Sem controle</span>`;
-  if(mode === 'recipe' && recipeLines(item.id).length === 0){
-    return `<span class="status-badge" style="background:#FEF3C7; color:#D97706;">Receita vazia</span>`;
-  }
-  const n = maxProducible(item);
-  const label = mode === 'direct' ? `Em estoque: ${fmtQty(n)}` : `Dá pra fazer: ${fmtQty(n)}`;
-  let style = 'background:#DCFCE7; color:#16A34A;';
-  if(n < 1) style = 'background:#FEE2E2; color:#DC2626;';
-  else if(n <= 10) style = 'background:#FEF3C7; color:#D97706;';
-  return `<span class="status-badge" style="${style}">${label}</span>`;
 }
 
 function stockProductCard(item){
   const mode = item.stockMode || 'none';
   const lines = recipeLines(item.id);
   const out = isOutOfStock(item);
+  const n = mode === 'none' ? null : maxProducible(item);
+  const recipeEmpty = mode === 'recipe' && lines.length === 0;
+  const lv = (n !== null && isFinite(n)) ? levelOf(n) : { tone: recipeEmpty ? 'warn' : 'none', pct: 0 };
   const restockOpen = state.restocking && state.restocking.kind === 'item' && state.restocking.id === item.id;
   const limiter = limitingIngredient(item);
 
+  let qtyLine = '<span class="s-sub">Sem controle de estoque</span>';
+  if(mode === 'direct') qtyLine = `<b>${fmtQty(n)}</b> em estoque`;
+  if(mode === 'recipe') qtyLine = recipeEmpty
+    ? '<span class="s-sub">Receita vazia — adicione os ingredientes</span>'
+    : `Dá pra fazer <b>${fmtQty(n)}</b>`;
+
   return `
-    <div class="order-card-emp" style="${item.active===false?'opacity:0.6;':''}">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
-        <div>
-          <div style="font-weight:700;">${item.emoji || ''} ${escapeHtml(item.name)}</div>
-          <div style="font-size:12px; color:var(--text-muted);">${escapeHtml(item.cat)}</div>
+    <div class="s-card tone-${lv.tone}" style="${item.active===false?'opacity:0.6;':''}">
+      <div class="s-icon">${item.emoji || '🥟'}</div>
+      <div class="s-main">
+        <div class="s-title">${escapeHtml(item.name)}</div>
+        <div class="s-qty">${qtyLine}</div>
+        ${barHtml(lv)}
+        ${mode === 'recipe' && lines.length > 0 ? `
+          <div class="muted" style="margin-top:6px;">
+            ${lines.map(l => { const ing = ingredientById(l.ingredientId);
+              return ing ? `${ingredientEmoji(ing.name)} ${fmtQty(l.quantity)} ${ing.unit} ${escapeHtml(ing.name)}` : '(ingrediente removido)'; }).join(' · ')}
+            ${limiter && !out ? `<br>Quem limita: <b>${escapeHtml(limiter.name)}</b>` : ''}
+          </div>` : ''}
+        ${out ? `<div class="stock-warn">Fora do cardápio até repor o estoque.</div>` : ''}
+        ${restockOpen ? restockRowHtml('un', true) : ''}
+        <div class="s-actions">
+          ${mode === 'direct' && !restockOpen ? `<button class="btn btn-primary btn-sm" onclick="startRestock('item','${item.id}')">+ Repor</button>` : ''}
+          <button class="btn btn-outline btn-sm" onclick="startEditStock('${item.id}')">${mode === 'none' ? 'Controlar estoque' : 'Configurar'}</button>
         </div>
-        ${stockStatusBadge(item)}
-      </div>
-
-      ${mode === 'recipe' && lines.length > 0 ? `
-        <div class="muted" style="margin-top:8px;">
-          <b>Receita (1 unidade):</b>
-          ${lines.map(l => {
-            const ing = ingredientById(l.ingredientId);
-            return ing ? `${fmtQty(l.quantity)} ${ing.unit} de ${escapeHtml(ing.name)}` : '(ingrediente removido)';
-          }).join(' • ')}
-        </div>
-        ${limiter && !out ? `<div class="muted" style="margin-top:4px;">Quem limita: <b>${escapeHtml(limiter.name)}</b></div>` : ''}
-      ` : ''}
-
-      ${out ? `<div class="stock-warn">Fora do cardápio até repor o estoque.</div>` : ''}
-
-      ${restockOpen ? restockRowHtml() : ''}
-
-      <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:10px;">
-        ${mode === 'direct' && !restockOpen ? `<button class="btn btn-outline btn-sm" onclick="startRestock('item','${item.id}')">+ Repor</button>` : ''}
-        <button class="btn btn-outline btn-sm" onclick="startEditStock('${item.id}')">${mode === 'none' ? 'Controlar estoque' : 'Configurar'}</button>
       </div>
     </div>
   `;
@@ -104,13 +187,13 @@ function stockProductForm(item){
   if(!d) return '';
   return `
     <div class="ticket-card">
-      <h4 style="margin-bottom:10px;">Estoque de: ${escapeHtml(item.name)}</h4>
+      <h4 style="margin-bottom:10px;">${item.emoji || ''} Estoque de: ${escapeHtml(item.name)}</h4>
       <div class="field">
         <label>Como controlar?</label>
         <select id="sd-mode" onchange="setStockDraftMode(this.value)">
           <option value="none" ${d.mode==='none'?'selected':''}>Não controlar (sempre disponível)</option>
-          <option value="recipe" ${d.mode==='recipe'?'selected':''}>Por receita — baixa ingredientes (pastéis)</option>
-          <option value="direct" ${d.mode==='direct'?'selected':''}>Estoque direto — revenda (bebidas)</option>
+          <option value="direct" ${d.mode==='direct'?'selected':''}>Estoque direto — pastéis prontos e bebidas</option>
+          <option value="recipe" ${d.mode==='recipe'?'selected':''}>Por receita — feito na hora com ingredientes fixos</option>
         </select>
       </div>
 
@@ -257,12 +340,17 @@ async function saveStockForm(){
 // INGREDIENTES
 // ------------------------------------------------------------
 function stockIngredientsView(){
+  const rank = { out: 0, low: 1, none: 2, ok: 3, warn: 2 };
+  const list = state.ingredients
+    .filter(i => matchesSearch(i.name))
+    .sort((a, b) => rank[ingredientLevel(a).tone] - rank[ingredientLevel(b).tone] || a.name.localeCompare(b.name, 'pt-BR'));
   return `
     <button class="btn btn-primary btn-block" style="margin-bottom:10px;" onclick="startAddIngredient()">+ Novo ingrediente</button>
-    <p class="muted" style="margin-bottom:14px;">
-      Ingredientes compartilhados (como a <b>massa</b>) são cadastrados <b>uma vez só</b> e entram na
-      receita de cada sabor. Dica: use <b>g</b> para carnes/queijos e <b>un</b> para massa, ovos etc.
+    <p class="muted" style="margin-bottom:12px;">
+      O que está <b>em falta</b> ou <b>acabando</b> aparece primeiro. Ingredientes compartilhados (como a
+      <b>massa</b>) são cadastrados <b>uma vez só</b>. Dica: use <b>g</b> para carnes/queijos e <b>un</b> para massa e ovos.
     </p>
+    ${searchBoxHtml('Buscar ingrediente...')}
 
     ${state.addingIngredient ? ingredientForm(null) : ''}
 
@@ -271,7 +359,7 @@ function stockIngredientsView(){
         Nenhum ingrediente ainda.<br>Exemplo: "Massa de pastel" — 100 un · "Carne moída" — 6000 g.
       </div>` : ''}
 
-    ${state.ingredients.map(ing => state.editingIngredientId === ing.id ? ingredientForm(ing) : ingredientCard(ing)).join('')}
+    ${list.map(ing => state.editingIngredientId === ing.id ? ingredientForm(ing) : ingredientCard(ing)).join('')}
   `;
 }
 
@@ -282,24 +370,30 @@ function ingredientUsedBy(ingId){
 
 function ingredientCard(ing){
   const usedBy = ingredientUsedBy(ing.id);
+  const servings = ingredientServings(ing);
+  const lv = ingredientLevel(ing);
   const restockOpen = state.restocking && state.restocking.kind === 'ingredient' && state.restocking.id === ing.id;
-  const empty = ing.stock <= 0;
   return `
-    <div class="order-card-emp">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
-        <div style="font-weight:700;">${escapeHtml(ing.name)}</div>
-        <span class="status-badge" style="${empty ? 'background:#FEE2E2; color:#DC2626;' : 'background:#F3F4F6; color:#1F2937;'}">
-          ${fmtQty(ing.stock)} ${ing.unit}
-        </span>
-      </div>
-      <div class="muted" style="margin-top:6px;">
-        ${usedBy.length > 0 ? `Usado em: ${usedBy.map(escapeHtml).join(', ')}` : 'Ainda não usado em nenhuma receita.'}
-      </div>
-      ${restockOpen ? restockRowHtml() : ''}
-      <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:10px;">
-        ${!restockOpen ? `<button class="btn btn-outline btn-sm" onclick="startRestock('ingredient','${ing.id}')">+ Repor</button>` : ''}
-        <button class="btn btn-outline btn-sm" onclick="state.editingIngredientId='${ing.id}'; state.addingIngredient=false; state.restocking=null; render();">Editar</button>
-        <button class="btn btn-sm" style="background:var(--brand-red); color:#FFF;" onclick="deleteIngredient('${ing.id}')">Excluir</button>
+    <div class="s-card tone-${lv.tone}">
+      <div class="s-icon">${ingredientEmoji(ing.name)}</div>
+      <div class="s-main">
+        <div class="s-title">
+          ${escapeHtml(ing.name)}
+          ${ing.id === state.customSettings.doughId ? '<span class="s-tag">massa</span>' : ''}
+          ${ing.customEnabled ? '<span class="s-tag ok">no personalizado</span>' : ''}
+        </div>
+        <div class="s-qty">
+          <b>${fmtQty(ing.stock)}</b> ${ing.unit}
+          ${servings !== null ? `<span class="s-sub">· dá pra ~${fmtQty(servings)} pastéis</span>` : ''}
+        </div>
+        ${barHtml(lv)}
+        ${usedBy.length > 0 ? `<div class="muted" style="margin-top:6px;">Receitas: ${usedBy.map(escapeHtml).join(', ')}</div>` : ''}
+        ${restockOpen ? restockRowHtml(ing.unit, false) : ''}
+        <div class="s-actions">
+          ${!restockOpen ? `<button class="btn btn-primary btn-sm" onclick="startRestock('ingredient','${ing.id}')">+ Repor</button>` : ''}
+          <button class="btn btn-outline btn-sm" onclick="state.editingIngredientId='${ing.id}'; state.addingIngredient=false; state.restocking=null; render();">Editar</button>
+          <button class="btn btn-sm" style="background:var(--brand-red); color:#FFF;" onclick="deleteIngredient('${ing.id}')">Excluir</button>
+        </div>
       </div>
     </div>
   `;
@@ -316,7 +410,7 @@ function ingredientForm(ing){
         <select id="ig-unit">
           ${STOCK_UNITS.map(u => `<option value="${u}" ${u===f.unit?'selected':''}>${u}</option>`).join('')}
         </select>
-        ${ing ? `<small class="muted" style="display:block; margin-top:4px;">Se mudar a unidade, revise as receitas que usam este ingrediente.</small>` : ''}
+        ${ing ? `<small class="muted" style="display:block; margin-top:4px;">Se mudar a unidade, revise as receitas e o pastel personalizado.</small>` : ''}
       </div>
       <div class="field">
         <label>${ing ? 'Quantidade em estoque agora (corrige o total)' : 'Quantidade em estoque'}</label>
@@ -369,16 +463,30 @@ async function deleteIngredient(id){
 }
 
 // ------------------------------------------------------------
-// REPOR ESTOQUE (soma, em vez de sobrescrever — seguro mesmo com pedidos chegando)
+// REPOR / RETIRAR (soma ou subtrai, em vez de sobrescrever — seguro mesmo com pedidos chegando)
 // ------------------------------------------------------------
-function restockRowHtml(){
+function restockChips(unit, isProduct){
+  if(isProduct) return [10, 24, 50];
+  return ({ g: [100, 500, 1000], kg: [1, 5, 10], ml: [250, 500, 1000], L: [1, 5, 10], un: [10, 50, 100] })[unit] || [10, 50, 100];
+}
+function restockRowHtml(unit, isProduct){
   return `
-    <div class="restock-row">
-      <input id="restock-input" type="number" min="0" step="any" placeholder="Quanto você está adicionando?">
-      <button class="btn btn-primary btn-sm" onclick="confirmRestock()">Adicionar</button>
-      <button class="btn btn-outline btn-sm" onclick="cancelRestock()">Cancelar</button>
+    <div class="restock-box">
+      <div class="restock-chips">
+        ${restockChips(unit, isProduct).map(n => `<button class="chip-mini" onclick="setRestockValue(${n})">${fmtQty(n)}</button>`).join('')}
+      </div>
+      <div class="restock-row">
+        <input id="restock-input" type="number" min="0" step="any" placeholder="Quantidade">
+        <button class="btn btn-primary btn-sm" onclick="confirmRestock(1)">Adicionar</button>
+        <button class="btn btn-outline btn-sm" onclick="confirmRestock(-1)">Retirar</button>
+        <button class="btn-ghost" title="Cancelar" onclick="cancelRestock()">✕</button>
+      </div>
     </div>
   `;
+}
+function setRestockValue(n){
+  const el = document.getElementById('restock-input');
+  if(el){ el.value = n; el.focus(); }
 }
 function startRestock(kind, id){
   closeStockForms();
@@ -387,13 +495,14 @@ function startRestock(kind, id){
 }
 function cancelRestock(){ state.restocking = null; render(); }
 
-async function confirmRestock(){
+// sign = 1 repõe, -1 retira (perda, estrago...)
+async function confirmRestock(sign){
   const r = state.restocking;
   if(!r) return;
   const amount = parseFloat(String(document.getElementById('restock-input').value).replace(',', '.'));
   if(!(amount > 0)){ alert('Digite uma quantidade maior que zero.'); return; }
-  const err = await adjustStockRemote(r.kind, r.id, amount);
-  if(err){ alert('Não foi possível repor agora. Confira se rodou a migração do estoque no Supabase.'); return; }
+  const err = await adjustStockRemote(r.kind, r.id, amount * (sign < 0 ? -1 : 1));
+  if(err){ alert('Não foi possível ajustar agora. Confira se rodou a migração do estoque no Supabase.'); return; }
   state.restocking = null;
   await loadStock();
   playSoundEffect('ding');

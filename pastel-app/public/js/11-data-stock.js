@@ -16,7 +16,14 @@ const STOCK_EPS = 1e-9;
 
 // ---------- carregar / salvar ----------
 function rowToIngredient(row){
-  return { id: row.id, name: row.name, unit: row.unit || 'g', stock: Number(row.stock) };
+  return {
+    id: row.id, name: row.name, unit: row.unit || 'g', stock: Number(row.stock),
+    // pastel personalizado
+    customEnabled: !!row.custom_enabled,
+    customCategory: row.custom_category || 'Outros',
+    customPortion: Number(row.custom_portion || 0),
+    customPrice: Number(row.custom_price || 0)
+  };
 }
 function rowToRecipeLine(row){
   return { menuItemId: row.menu_item_id, ingredientId: row.ingredient_id, quantity: Number(row.quantity) };
@@ -43,6 +50,7 @@ async function loadIngredientsAndRecipes(){
 async function loadStock(){
   await loadMenu();
   await loadIngredientsAndRecipes();
+  await loadCustomConfig();
 }
 
 async function saveIngredient(ing){
@@ -96,19 +104,23 @@ async function saveRecipeLines(itemId, lines){
 // ---------- baixa de estoque no pedido ----------
 function itemIsTracked(item){ return (item.stockMode || 'none') !== 'none'; }
 
-// items = cartItems() ({id, qty, stockMode, ...}). Devolve null se deu certo.
-async function consumeStock(items){
-  if(!items.some(itemIsTracked)) return null; // nada controlado: não mexe no estoque
-  const { error } = await supabaseClient.rpc('consume_stock', {
-    p_items: items.map(i => ({ id: i.id, qty: i.qty }))
-  });
+// items = cartItems() ({id, qty, stockMode, ...}); customLines = state.customCart.
+// Devolve null se deu certo.
+function stockRpcArgs(items, customLines){
+  const args = { p_items: items.map(i => ({ id: i.id, qty: i.qty })) };
+  if(customLines.length > 0){
+    args.p_custom = customLines.map(l => ({ size: l.sizeId, ing: l.ingredientIds, qty: l.qty }));
+  }
+  return args;
+}
+async function consumeStock(items, customLines = []){
+  if(!items.some(itemIsTracked) && customLines.length === 0) return null; // nada controlado
+  const { error } = await supabaseClient.rpc('consume_stock', stockRpcArgs(items, customLines));
   return error || null;
 }
-async function restoreStock(items){
-  if(!items.some(itemIsTracked)) return;
-  const { error } = await supabaseClient.rpc('restore_stock', {
-    p_items: items.map(i => ({ id: i.id, qty: i.qty }))
-  });
+async function restoreStock(items, customLines = []){
+  if(!items.some(itemIsTracked) && customLines.length === 0) return;
+  const { error } = await supabaseClient.rpc('restore_stock', stockRpcArgs(items, customLines));
   if(error) console.error('Falha ao devolver estoque', error);
 }
 function isStockShortage(error){
@@ -165,7 +177,7 @@ function visibleMenuItems(){
 }
 
 // Quanto cada ingrediente é consumido por uma sacola (e quais itens de revenda passam do limite)
-function cartStockUsage(cartMap){
+function cartStockUsage(cartMap, customLines = state.customCart){
   const ingredientUse = {};
   const directOver = [];
   for(const [id, qty] of Object.entries(cartMap)){
@@ -181,11 +193,16 @@ function cartStockUsage(cartMap){
       }
     }
   }
+  for(const line of customLines){
+    for(const [ingId, qty] of Object.entries(customLineNeeds(line))){
+      ingredientUse[ingId] = (ingredientUse[ingId] || 0) + qty;
+    }
+  }
   return { ingredientUse, directOver };
 }
 
-function overusedIngredientIds(cartMap){
-  const { ingredientUse } = cartStockUsage(cartMap);
+function overusedIngredientIds(cartMap, customLines = state.customCart){
+  const { ingredientUse } = cartStockUsage(cartMap, customLines);
   const bad = new Set();
   for(const [ingId, need] of Object.entries(ingredientUse)){
     const ing = ingredientById(ingId);
@@ -194,9 +211,9 @@ function overusedIngredientIds(cartMap){
   return bad;
 }
 
-function cartExceedsStock(cartMap){
-  const { directOver } = cartStockUsage(cartMap);
-  return directOver.length > 0 || overusedIngredientIds(cartMap).size > 0;
+function cartExceedsStock(cartMap, customLines = state.customCart){
+  const { directOver } = cartStockUsage(cartMap, customLines);
+  return directOver.length > 0 || overusedIngredientIds(cartMap, customLines).size > 0;
 }
 
 // Dá pra colocar mais 1 unidade desse item na sacola sem estourar o estoque?
@@ -222,22 +239,44 @@ function clampCartToStock(){
     if(state.cart[id] <= 0) delete state.cart[id];
   }
 
-  // 2) itens de receita: reduz quem usa algum ingrediente em falta
+  // 2) pastéis personalizados: tira recheios que o dono desativou/removeu
+  state.customCart = state.customCart.filter(line => {
+    const before = line.ingredientIds.length;
+    line.ingredientIds = line.ingredientIds.filter(id => {
+      const ing = ingredientById(id);
+      return ing && ing.customEnabled;
+    });
+    if(line.ingredientIds.length !== before) changed = true;
+    if(line.ingredientIds.length === 0 || !customSizeById(line.sizeId)){ changed = true; return false; }
+    return true;
+  });
+
+  // 3) reduz quem usa algum ingrediente em falta (itens de receita e personalizados)
   let guard = 1000;
   while(guard-- > 0){
-    const bad = overusedIngredientIds(state.cart);
+    const bad = overusedIngredientIds(state.cart, state.customCart);
     if(bad.size === 0) break;
-    let target = null;
+    let target = null;   // { type: 'item', id } | { type: 'custom', line }
+    let targetQty = -1;
     for(const [id, qty] of Object.entries(state.cart)){
       const item = state.menu.find(m => m.id === id);
       if(!item || (item.stockMode || 'none') !== 'recipe') continue;
       if(!recipeLines(id).some(l => bad.has(l.ingredientId))) continue;
-      if(target === null || qty > state.cart[target]) target = id;
+      if(qty > targetQty){ target = { type: 'item', id }; targetQty = qty; }
+    }
+    for(const line of state.customCart){
+      if(!Object.keys(customLineNeeds(line)).some(k => bad.has(k))) continue;
+      if(line.qty > targetQty){ target = { type: 'custom', line }; targetQty = line.qty; }
     }
     if(target === null) break;
-    state.cart[target] -= 1;
     changed = true;
-    if(state.cart[target] <= 0) delete state.cart[target];
+    if(target.type === 'item'){
+      state.cart[target.id] -= 1;
+      if(state.cart[target.id] <= 0) delete state.cart[target.id];
+    } else {
+      target.line.qty -= 1;
+      if(target.line.qty <= 0) state.customCart = state.customCart.filter(l => l !== target.line);
+    }
   }
   return changed;
 }
