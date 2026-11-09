@@ -1,30 +1,35 @@
 -- ============================================================
--- PASTEL PERSONALIZADO: configuração inicial sugerida
+-- PASTEL PERSONALIZADO: configuração inicial sugerida (modelo de PORÇÕES)
 --
--- Rode UMA vez no SQL Editor do Supabase, depois do migration-personalizado.sql.
+-- Rode no SQL Editor do Supabase DEPOIS do migration-personalizado.sql e do
+-- migration-porcoes.sql.
 --
 -- O que faz:
---   * cria os tamanhos Pequeno / Médio / Grande
+--   * cria os tamanhos Pequeno / Médio / Grande (com limite de porções)
 --   * cadastra (com estoque ZERO) os ingredientes que ainda não existem
---   * deixa todos disponíveis para o cliente montar o pastel, com porção e
---     adicional de preço sugeridos
+--   * define, para cada ingrediente, o que é 1 PORÇÃO: nome (fatia, colher...),
+--     peso (ex.: 1 fatia de mussarela = 25 g) e preço da porção
 --   * marca a "Massa de pastel" como a massa dos pastéis personalizados
 --
--- É SEGURO: o pastel personalizado só aparece pro cliente quando houver estoque
--- (ingrediente com 0 fica indisponível sozinho), e rodar de novo NÃO sobrescreve
--- o que você já ajustou.
+-- É SEGURO: ingrediente com estoque 0 não aparece pro cliente. Pode rodar de novo:
+-- só ajusta os ingredientes que ainda estão no modelo antigo (sem "nome da porção"),
+-- ou seja, NÃO sobrescreve o que você já configurou depois.
 --
--- TODOS OS PREÇOS E PORÇÕES ABAIXO SÃO SUGESTÕES: ajuste em
--- Estoque > Personalizado. Porções valem para o tamanho MÉDIO; o Pequeno e o
--- Grande usam o "fator" do tamanho (0,6x e 1,5x).
+-- TODOS OS PESOS E PREÇOS ABAIXO SÃO SUGESTÕES — ajuste em Estoque > Personalizado.
 -- ============================================================
 
--- 1) Tamanhos
-insert into custom_sizes (id, name, base_price, factor, dough_qty, sort) values
-  ('P', 'Pequeno',  5.00, 0.6, 0.5, 1),
-  ('M', 'Médio',    7.00, 1.0, 1.0, 2),
-  ('G', 'Grande',  10.00, 1.5, 1.5, 3)
+-- 1) Tamanhos (preço base | massa gasta | máx. de porções de recheio no total)
+insert into custom_sizes (id, name, base_price, factor, dough_qty, max_portions, sort) values
+  ('P', 'Pequeno',  5.00, 1, 0.5, 3, 1),
+  ('M', 'Médio',    7.00, 1, 1.0, 5, 2),
+  ('G', 'Grande',  10.00, 1, 1.5, 8, 3)
 on conflict (id) do nothing;
+
+-- tamanhos criados antes do limite de porções existir
+update custom_sizes s
+   set max_portions = v.mp
+  from (values ('P', 3), ('M', 5), ('G', 8)) as v(id, mp)
+ where s.id = v.id and s.max_portions = 0;
 
 -- 2) Ingredientes (estoque zero; os que já existem ficam como estão)
 insert into ingredients (id, name, unit, stock) values
@@ -55,42 +60,44 @@ insert into ingredients (id, name, unit, stock) values
   ('ing_acucar',       'Açúcar',          'g',  0)
 on conflict (id) do nothing;
 
--- 3) Como cada ingrediente aparece pro cliente (só mexe nos que ainda não foram configurados)
+-- 3) O que é 1 PORÇÃO de cada ingrediente
+--    colunas: id | categoria | nome da porção | peso de 1 porção (na unidade do ingrediente)
+--             | preço de 1 porção (R$) | máx. de porções por pastel
 update ingredients i
-   set custom_enabled  = true,
-       custom_category = v.cat,
-       custom_portion  = v.portion,
-       custom_price    = v.price
+   set custom_enabled        = true,
+       custom_category       = v.cat,
+       custom_portion_label  = v.label,
+       custom_portion        = v.portion,
+       custom_price          = v.price,
+       custom_max_qty        = v.maxq
   from (values
-    -- id,                categoria,        porção (médio), adicional R$ (médio)
-    ('ing_carne_moida',  'Carnes',          50,   1.50),
-    ('ing_frango',       'Carnes',          60,   1.50),
-    ('ing_carne_seca',   'Carnes',          40,   3.00),
-    ('ing_calabresa',    'Carnes',          40,   1.00),
-    ('ing_bacon',        'Carnes',          25,   1.50),
-    ('ing_presunto',     'Carnes',          30,   1.00),
-    ('ing_camarao',      'Frutos do mar',   40,   4.00),
-    ('ing_mussarela',    'Queijos',         50,   1.50),
-    ('ing_catupiry',     'Queijos',         30,   1.50),
-    ('ing_requeijao',    'Queijos',         30,   1.00),
-    ('ing_coalho',       'Queijos',         40,   2.00),
-    ('ing_tomate',       'Vegetais',        20,   0.00),
-    ('ing_cebola',       'Vegetais',        10,   0.00),
-    ('ing_azeitona',     'Vegetais',         8,   0.50),
-    ('ing_milho',        'Vegetais',        20,   0.50),
-    ('ing_palmito',      'Vegetais',        30,   1.50),
-    ('ing_ovo',          'Vegetais',         0.5, 1.00),
-    ('ing_cheiro_verde', 'Temperos',         3,   0.00),
-    ('ing_oregano',      'Temperos',         1,   0.00),
-    ('ing_banana',       'Doces',           50,   1.00),
-    ('ing_chocolate',    'Doces',           40,   2.00),
-    ('ing_goiabada',     'Doces',           40,   1.50),
-    ('ing_canela',       'Doces',            1,   0.00),
-    ('ing_acucar',       'Doces',            5,   0.00)
-  ) as v(id, cat, portion, price)
+    ('ing_carne_moida',  'Carnes',         'porção',  25,   0.75, 4),   -- 1 porção = 25 g  (2 = 50 g)
+    ('ing_frango',       'Carnes',         'porção',  30,   0.75, 4),
+    ('ing_carne_seca',   'Carnes',         'porção',  20,   1.50, 4),
+    ('ing_calabresa',    'Carnes',         'porção',  20,   0.50, 4),
+    ('ing_bacon',        'Carnes',         'porção',  10,   0.75, 4),
+    ('ing_presunto',     'Carnes',         'fatia',   15,   0.80, 4),
+    ('ing_camarao',      'Frutos do mar',  'porção',  20,   2.00, 4),
+    ('ing_mussarela',    'Queijos',        'fatia',   25,   1.00, 4),   -- 1 fatia = 25 g  (2 fatias = 50 g)
+    ('ing_catupiry',     'Queijos',        'colher',  20,   1.00, 3),
+    ('ing_requeijao',    'Queijos',        'colher',  20,   0.80, 3),
+    ('ing_coalho',       'Queijos',        'fatia',   30,   1.50, 3),
+    ('ing_tomate',       'Vegetais',       'porção',  20,   0.00, 3),
+    ('ing_cebola',       'Vegetais',       'porção',  10,   0.00, 3),
+    ('ing_azeitona',     'Vegetais',       'porção',   5,   0.25, 4),
+    ('ing_milho',        'Vegetais',       'colher',  15,   0.25, 3),
+    ('ing_palmito',      'Vegetais',       'porção',  20,   0.75, 3),
+    ('ing_ovo',          'Vegetais',       'metade',   0.5, 0.50, 2),   -- 0,5 un = meio ovo
+    ('ing_cheiro_verde', 'Temperos',       'pitada',   2,   0.00, 2),
+    ('ing_oregano',      'Temperos',       'pitada',   1,   0.00, 2),
+    ('ing_banana',       'Doces',          'porção',  40,   0.75, 4),
+    ('ing_chocolate',    'Doces',          'porção',  20,   1.00, 4),
+    ('ing_goiabada',     'Doces',          'fatia',   25,   0.75, 3),
+    ('ing_canela',       'Doces',          'pitada',   1,   0.00, 2),
+    ('ing_acucar',       'Doces',          'colher',   5,   0.00, 2)
+  ) as v(id, cat, label, portion, price, maxq)
  where i.id = v.id
-   and i.custom_enabled = false
-   and i.custom_portion = 0;
+   and i.custom_portion_label is null;
 
 -- 4) Qual ingrediente é a massa (só se ainda não foi escolhida)
 update custom_settings
@@ -99,12 +106,13 @@ update custom_settings
    and dough_id is null
    and exists (select 1 from ingredients where id = 'ing_massa');
 
--- 5) Conferência: tamanhos e ingredientes disponíveis pro cliente
-select id, name as tamanho, base_price as preco_base, factor as fator, dough_qty as massa
+-- 5) Conferência: tamanhos e porções disponíveis pro cliente
+select id, name as tamanho, base_price as preco_base, max_portions as max_porcoes, dough_qty as massa
   from custom_sizes order by sort;
 
-select custom_category as categoria, name as ingrediente, unit as unidade,
-       custom_portion as porcao_medio, custom_price as adicional_medio, stock as estoque
+select custom_category as categoria, name as ingrediente,
+       '1 ' || custom_portion_label || ' = ' || custom_portion || ' ' || unit as porcao,
+       custom_price as preco_da_porcao, custom_max_qty as max_por_pastel, stock as estoque
   from ingredients
  where custom_enabled
  order by custom_category, name;

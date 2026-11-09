@@ -1,3 +1,5 @@
+-- >>> Depois deste arquivo rode o migration-porcoes.sql: ele troca as funções de estoque para o
+-- >>> modelo atual (o cliente escolhe QUANTAS PORÇÕES de cada ingrediente).
 -- ============================================================
 -- MIGRAÇÃO: PASTEL PERSONALIZADO
 -- O cliente escolhe o tamanho (P/M/G) e os recheios; cada escolha

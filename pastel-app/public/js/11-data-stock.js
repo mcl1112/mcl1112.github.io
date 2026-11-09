@@ -21,8 +21,10 @@ function rowToIngredient(row){
     // pastel personalizado
     customEnabled: !!row.custom_enabled,
     customCategory: row.custom_category || 'Outros',
-    customPortion: Number(row.custom_portion || 0),
-    customPrice: Number(row.custom_price || 0)
+    customPortion: Number(row.custom_portion || 0),            // peso/quantidade de 1 PORÇÃO (na unidade do ingrediente)
+    customPrice: Number(row.custom_price || 0),                // preço de 1 porção
+    customPortionLabel: row.custom_portion_label || 'porção',  // fatia, colher, pitada...
+    customMaxQty: row.custom_max_qty != null ? Number(row.custom_max_qty) : 4
   };
 }
 function rowToRecipeLine(row){
@@ -109,7 +111,11 @@ function itemIsTracked(item){ return (item.stockMode || 'none') !== 'none'; }
 function stockRpcArgs(items, customLines){
   const args = { p_items: items.map(i => ({ id: i.id, qty: i.qty })) };
   if(customLines.length > 0){
-    args.p_custom = customLines.map(l => ({ size: l.sizeId, ing: l.ingredientIds, qty: l.qty }));
+    args.p_custom = customLines.map(l => ({
+      size: l.sizeId,
+      ing: pickEntries(l.picks).map(([id, n]) => ({ id, n })),
+      qty: l.qty
+    }));
   }
   return args;
 }
@@ -239,15 +245,26 @@ function clampCartToStock(){
     if(state.cart[id] <= 0) delete state.cart[id];
   }
 
-  // 2) pastéis personalizados: tira recheios que o dono desativou/removeu
+  // 2) pastéis personalizados: tira recheios que o dono desativou/removeu e respeita
+  //    os limites atuais (máximo por ingrediente e total de porções do tamanho)
   state.customCart = state.customCart.filter(line => {
-    const before = line.ingredientIds.length;
-    line.ingredientIds = line.ingredientIds.filter(id => {
+    const size = customSizeById(line.sizeId);
+    if(!size){ changed = true; return false; }
+    for(const [id, n] of Object.entries(line.picks)){
       const ing = ingredientById(id);
-      return ing && ing.customEnabled;
-    });
-    if(line.ingredientIds.length !== before) changed = true;
-    if(line.ingredientIds.length === 0 || !customSizeById(line.sizeId)){ changed = true; return false; }
+      if(!ing || !ing.customEnabled){ delete line.picks[id]; changed = true; continue; }
+      const max = ingredientMaxPortions(ing);
+      if(max > 0 && n > max){ line.picks[id] = max; changed = true; }
+    }
+    if(size.maxPortions > 0){
+      while(totalPortions(line.picks) > size.maxPortions){
+        const [id] = pickEntries(line.picks).sort((a, b) => b[1] - a[1])[0];
+        line.picks[id] -= 1;
+        if(line.picks[id] <= 0) delete line.picks[id];
+        changed = true;
+      }
+    }
+    if(totalPortions(line.picks) === 0){ changed = true; return false; }
     return true;
   });
 

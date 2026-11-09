@@ -1,5 +1,8 @@
 // ============================================================
 // CLIENTE: MONTE O SEU PASTEL
+// O cliente escolhe o tamanho e, para cada ingrediente, QUANTAS PORÇÕES quer
+// (ex.: 1 fatia de queijo = 25 g, 2 fatias = 50 g). A gramatura de cada porção
+// aparece sempre, e o total escolhido também.
 // ============================================================
 const CUSTOM_CATEGORY_ORDER = ['Carnes', 'Frutos do mar', 'Queijos', 'Vegetais', 'Temperos', 'Doces'];
 
@@ -11,7 +14,7 @@ function customEntryCardHtml(){
       <div class="custom-entry-emoji">🧑‍🍳</div>
       <div class="custom-entry-text">
         <h3>Monte o seu pastel</h3>
-        <p>Escolha o tamanho e os recheios — feito na hora, do seu jeito.</p>
+        <p>Escolha o tamanho e quanto quer de cada recheio — feito na hora, do seu jeito.</p>
         <span class="custom-entry-price">a partir de ${money(customMinPrice())}</span>
       </div>
       <div class="custom-entry-go">➔</div>
@@ -23,7 +26,7 @@ function customEntryCardHtml(){
 function openBuilder(){
   playSoundEffect('pop');
   const first = state.customSizes.find(s => builderSizeAvailable(s.id)) || state.customSizes[0];
-  state.builder = { sizeId: first ? first.id : null, ingredientIds: [], qty: 1 };
+  state.builder = { sizeId: first ? first.id : null, picks: {}, qty: 1 };
   state.builderOpen = true;
   render();
   if(window.scrollTo) window.scrollTo(0, 0);
@@ -47,32 +50,31 @@ function builderSetSize(id){
   }
   const d = state.builder;
   d.sizeId = id;
-  // o tamanho novo pode pedir mais de algum recheio: tira o que não cabe no estoque
-  const keep = [];
-  for(const ingId of d.ingredientIds){
-    const test = { sizeId: id, ingredientIds: [...keep, ingId], qty: d.qty };
-    if(!cartExceedsStock(state.cart, [...state.customCart, test])) keep.push(ingId);
-  }
-  const removed = d.ingredientIds.length - keep.length;
-  d.ingredientIds = keep;
+  const changed = fitPicksToSize(id, d.picks, d.qty);   // tamanho menor = menos porções
   fixBuilderQty();
   playSoundEffect('pop');
   render();
-  if(removed > 0) showToast('Tiramos recheios que não têm estoque nesse tamanho.');
+  if(changed) showToast('Ajustamos as porções para caber nesse tamanho.');
 }
 
-function builderToggleIngredient(id){
+// +1 / -1 porção de um ingrediente
+function builderStep(ingId, delta){
   const d = state.builder;
-  const idx = d.ingredientIds.indexOf(id);
-  if(idx >= 0){
-    d.ingredientIds.splice(idx, 1);
+  const cur = d.picks[ingId] || 0;
+  if(delta < 0){
+    if(cur <= 0) return;
+    d.picks[ingId] = cur - 1;
+    if(d.picks[ingId] <= 0) delete d.picks[ingId];
   } else {
-    if(builderIngredientBlocked(id)){
+    const reason = builderPlusBlockReason(ingId);
+    if(reason){
       playSoundEffect('error');
-      showToast('Não há estoque suficiente desse recheio.');
+      showToast(reason === 'size' ? 'Esse tamanho já está cheio de recheio — escolha um tamanho maior.'
+        : reason === 'max' ? 'Máximo de porções desse recheio atingido.'
+        : 'Não há estoque suficiente desse recheio.');
       return;
     }
-    d.ingredientIds.push(id);
+    d.picks[ingId] = cur + 1;
   }
   playSoundEffect('pop');
   render();
@@ -94,9 +96,9 @@ function builderChangeQty(delta){
 
 function addCustomToCart(){
   const d = state.builder;
-  if(!d.sizeId || d.ingredientIds.length === 0){
+  if(!d.sizeId || totalPortions(d.picks) === 0){
     playSoundEffect('error');
-    showToast('Escolha o tamanho e pelo menos 1 recheio.');
+    showToast('Escolha o tamanho e pelo menos 1 porção de recheio.');
     return;
   }
   if(builderDraftExceeds()){
@@ -104,15 +106,14 @@ function addCustomToCart(){
     showToast('Estoque insuficiente para essa combinação.');
     return;
   }
-  const ids = [...d.ingredientIds].sort();
-  // mesmo tamanho + mesmos recheios: soma na linha que já existe
-  const same = state.customCart.find(l =>
-    l.sizeId === d.sizeId && l.ingredientIds.length === ids.length &&
-    [...l.ingredientIds].sort().every((x, k) => x === ids[k]));
+  const picks = {};
+  pickEntries(d.picks).forEach(([id, n]) => { picks[id] = n; });
+  // mesmo tamanho + mesmas porções: soma na linha que já existe
+  const same = state.customCart.find(l => l.sizeId === d.sizeId && picksKey(l.picks) === picksKey(picks));
   if(same) same.qty += d.qty;
   else state.customCart.push({
     uid: 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
-    sizeId: d.sizeId, ingredientIds: ids, qty: d.qty
+    sizeId: d.sizeId, picks, qty: d.qty
   });
   state.builderOpen = false;
   playSoundEffect('pop');
@@ -127,14 +128,17 @@ function removeCustomLine(uid){
 }
 
 // ---------- tela ----------
-// Recheios que o cliente pode escolher agrupados por categoria.
-// Quem está totalmente sem estoque nesse tamanho nem aparece (como no cardápio).
+// Recheios agrupados por categoria. Quem está totalmente sem estoque nem aparece
+// (como no cardápio).
 function groupedCustomIngredients(){
   const d = state.builder;
   const list = enabledCustomIngredients().filter(ing =>
-    !cartExceedsStock({}, [{ sizeId: d.sizeId, ingredientIds: [ing.id], qty: 1 }]));
+    !cartExceedsStock({}, [{ sizeId: d.sizeId, picks: { [ing.id]: 1 }, qty: 1 }]));
   const groups = {};
-  list.forEach(ing => { (groups[ing.customCategory || 'Outros'] = groups[ing.customCategory || 'Outros'] || []).push(ing); });
+  list.forEach(ing => {
+    const cat = ing.customCategory || 'Outros';
+    (groups[cat] = groups[cat] || []).push(ing);
+  });
   const rank = cat => { const i = CUSTOM_CATEGORY_ORDER.indexOf(cat); return i < 0 ? 99 : i; };
   return Object.keys(groups)
     .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b, 'pt-BR'))
@@ -144,41 +148,52 @@ function groupedCustomIngredients(){
 function sizeCardHtml(s){
   const sel = s.id === state.builder.sizeId;
   const ok = builderSizeAvailable(s.id);
-  const px = Math.round(20 + s.factor * 14);
+  const px = Math.round(24 + (s.maxPortions || 4) * 3);
   return `
     <button class="size-card ${sel ? 'selected' : ''} ${ok ? '' : 'disabled'}" onclick="builderSetSize('${s.id}')">
-      <div class="size-emoji" style="font-size:${px}px;">🥟</div>
+      <div class="size-emoji" style="font-size:${Math.min(px, 50)}px;">🥟</div>
       <div class="size-name">${escapeHtml(s.name)}</div>
       <div class="size-price">${ok ? 'base ' + money(s.basePrice) : 'Sem estoque'}</div>
+      ${ok && s.maxPortions > 0 ? `<div class="size-cap">até ${s.maxPortions} porções</div>` : ''}
     </button>
   `;
 }
 
-function chipHtml(ing){
-  const d = state.builder;
-  const size = customSizeById(d.sizeId);
-  const selected = d.ingredientIds.includes(ing.id);
-  const blocked = !selected && builderIngredientBlocked(ing.id);
-  const extra = size ? customIngredientExtra(ing, size) : 0;
+// Uma linha de ingrediente: nome, "1 fatia = 25 g", e o seletor de porções
+function ingredientRowHtml(ing){
+  const n = state.builder.picks[ing.id] || 0;
+  const plusBlocked = builderPlusBlockReason(ing.id) !== null;
+  const amount1 = portionAmountText(ing, 1);
+  const priceTxt = ing.customPrice > 0 ? ` · +${money(ing.customPrice)} cada` : '';
   return `
-    <button class="chip ${selected ? 'selected' : ''} ${blocked ? 'disabled' : ''}" ${blocked ? 'disabled' : ''}
-            onclick="builderToggleIngredient('${ing.id}')">
-      <span class="chip-emoji">${ingredientEmoji(ing.name)}</span>
-      <span class="chip-name">${escapeHtml(ing.name)}</span>
-      ${blocked ? '<small>Sem estoque</small>' : (extra > 0 ? `<small>+${money(extra)}</small>` : '')}
-    </button>
+    <div class="ing-row ${n > 0 ? 'active' : ''}">
+      <div class="ing-emoji">${ingredientEmoji(ing.name)}</div>
+      <div class="ing-info">
+        <div class="ing-name">${escapeHtml(ing.name)}</div>
+        <div class="ing-portion">1 ${escapeHtml(portionNoun(ing, 1))}${amount1 ? ` = <b class="grams">${amount1}</b>` : ''}${priceTxt}</div>
+        ${n > 0 ? `<div class="ing-total">${n} ${escapeHtml(portionNoun(ing, n))}${portionAmountText(ing, n) ? ` = <b class="grams">${portionAmountText(ing, n)}</b>` : ''}${ing.customPrice > 0 ? ` · +${money(round2(ing.customPrice * n))}` : ''}</div>` : ''}
+      </div>
+      <div class="ing-stepper">
+        <button class="step-btn" ${n === 0 ? 'disabled' : ''} onclick="builderStep('${ing.id}', -1)">−</button>
+        <span class="step-num">${n}</span>
+        <button class="step-btn plus" ${plusBlocked ? 'disabled' : ''} onclick="builderStep('${ing.id}', 1)">+</button>
+      </div>
+    </div>
   `;
 }
 
 function viewBuilder(){
   const d = state.builder;
   const size = customSizeById(d.sizeId);
-  const unit = customUnitPrice(d.sizeId, d.ingredientIds);
+  const unit = customUnitPrice(d.sizeId, d.picks);
   const total = round2(unit * d.qty);
-  const exceeds = d.ingredientIds.length > 0 && builderDraftExceeds();
-  const canAdd = !!size && d.ingredientIds.length > 0 && !exceeds;
+  const used = totalPortions(d.picks);
+  const exceeds = used > 0 && builderDraftExceeds();
+  const canAdd = !!size && used > 0 && !exceeds;
   const groups = groupedCustomIngredients();
-  const chosen = d.ingredientIds.map(id => ingredientById(id)).filter(Boolean);
+  const cap = size ? size.maxPortions : 0;
+  const grams = fillingGrams(d.picks);
+  const chosen = pickEntries(d.picks).map(([id, n]) => ({ ing: ingredientById(id), n })).filter(x => x.ing);
 
   return `
     <div class="builder">
@@ -188,7 +203,7 @@ function viewBuilder(){
         <div class="builder-hero-emoji">🧑‍🍳</div>
         <div>
           <h2>Monte o seu pastel</h2>
-          <p>Feito na hora, do jeitinho que você quer.</p>
+          <p>Escolha quanto quer de cada recheio. Feito na hora, do seu jeito.</p>
         </div>
       </div>
 
@@ -196,19 +211,27 @@ function viewBuilder(){
       <div class="size-grid">${state.customSizes.map(sizeCardHtml).join('')}</div>
 
       <div class="b-step"><span class="b-num">2</span><h3>Escolha os recheios</h3></div>
+      ${cap > 0 ? `
+        <div class="cap-box ${used >= cap ? 'full' : ''}">
+          <div class="cap-text"><b>${used}</b> de <b>${cap}</b> porções no pastel ${escapeHtml(size.name)}${used >= cap ? ' — cheio!' : ''}</div>
+          <div class="bar"><i class="bar-fill ${used >= cap ? 'low' : 'ok'}" style="width:${Math.min(100, (used / cap) * 100)}%"></i></div>
+        </div>` : ''}
       ${groups.length === 0 ? `<div class="muted" style="padding:14px 0;">Nenhum recheio disponível agora.</div>` : ''}
       ${groups.map(g => `
         <div class="chip-group">
           <div class="chip-group-title">${escapeHtml(g.cat)}</div>
-          <div class="chip-row">${g.items.map(chipHtml).join('')}</div>
+          ${g.items.map(ingredientRowHtml).join('')}
         </div>
       `).join('')}
 
       <div class="builder-summary">
-        <div class="builder-summary-title">Seu pastel</div>
+        <div class="builder-summary-title">Seu pastel${size ? ' · ' + escapeHtml(size.name) : ''}</div>
         ${chosen.length === 0
-          ? `<div class="muted">Toque nos recheios acima para montar.</div>`
-          : `<div class="builder-summary-list">${size ? `<b>${escapeHtml(size.name)}</b> com ` : ''}${chosen.map(i => `${ingredientEmoji(i.name)} ${escapeHtml(i.name)}`).join(' · ')}</div>`}
+          ? `<div class="muted">Use o + nos recheios acima para montar.</div>`
+          : `<div class="builder-summary-list">
+               ${chosen.map(c => `<div>${ingredientEmoji(c.ing.name)} ${escapeHtml(pickText(c.ing, c.n))}</div>`).join('')}
+               ${grams > 0 ? `<div class="builder-grams">Recheio total: <b class="grams">≈ ${fmtQty(grams)} g</b></div>` : ''}
+             </div>`}
         ${exceeds ? `<div class="stock-warn" style="margin-top:8px;">Estoque insuficiente para essa combinação.</div>` : ''}
       </div>
     </div>

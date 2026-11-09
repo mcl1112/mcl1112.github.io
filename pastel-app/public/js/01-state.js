@@ -65,9 +65,9 @@ let state = {
   addingPromo: false,
   customSettings: { active: false, doughId: null },  // pastel personalizado: ligado? qual ingrediente é a massa
   customSizes: [],            // [{id, name, basePrice, factor, doughQty, sort}]
-  customCart: [],             // sacola: [{uid, sizeId, ingredientIds: [], qty}]
+  customCart: [],             // sacola: [{uid, sizeId, picks: {ingredienteId: porções}, qty}]
   builderOpen: false,         // cliente: montando o pastel?
-  builder: { sizeId: null, ingredientIds: [], qty: 1 },
+  builder: { sizeId: null, picks: {}, qty: 1 },   // picks: { ingredienteId: nº de porções }
   stockSearch: '',            // aba Estoque: busca
   editingCustomIngId: null,   // aba Estoque > Personalizado
   editingSizes: false,

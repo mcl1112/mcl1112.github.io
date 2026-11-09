@@ -18,8 +18,9 @@ pastel-app/
 │   ├── migration-estoque.sql                         -> estoque
 │   ├── seed-ingredientes-e-receitas.sql              -> (opcional) receitas por pastel, modo "Por receita"
 │   ├── ativar-estoque-por-receita.sql                -> (opcional) só para o modo "Por receita"
-│   ├── migration-personalizado.sql                   -> NOVO: pastel personalizado (rode depois do estoque)
-│   └── seed-pastel-personalizado.sql                 -> NOVO: tamanhos + catálogo de ingredientes sugerido
+│   ├── migration-personalizado.sql                   -> pastel personalizado (rode depois do estoque)
+│   ├── migration-porcoes.sql                         -> NOVO: porções por ingrediente (rode depois do personalizado)
+│   └── seed-pastel-personalizado.sql                 -> tamanhos + catálogo com porções sugeridas (rode por último)
 └── public/
     ├── index.html
     ├── style.css
@@ -192,27 +193,35 @@ Referência de massa: 1 kg rende cerca de 15 pastéis de tamanho comercial.
 ## 10. Pastéis prontos e Pastel Personalizado
 
 **Ordem dos SQLs (Supabase > SQL Editor):** `migration-estoque.sql` → `migration-personalizado.sql`
-→ `seed-pastel-personalizado.sql` (opcional, recomendado).
+→ `migration-porcoes.sql` → `seed-pastel-personalizado.sql` (recomendado; pode rodar de novo sem perder ajustes).
 
 ### Pastéis prontos = estoque direto (igual à Coca)
 Em **Estoque > Produtos > Controlar estoque > Estoque direto**, informe quantos pastéis prontos você tem.
 Cada venda tira 1; ao zerar o pastel some do cardápio. Na produção do dia use **+ Repor** (atalhos 10, 24, 50)
 e **Retirar** para perdas. Não precisa de receita para isso.
 
-### Pastel Personalizado (o cliente monta)
-No cardápio aparece o cartão **"Monte o seu pastel"**: o cliente escolhe **tamanho** (Pequeno/Médio/Grande)
-e **recheios**. A pessoa vê só o que tem estoque; ingrediente zerado some da montagem.
+### Pastel Personalizado (o cliente monta, porção por porção)
+No cardápio aparece o cartão **"Monte o seu pastel"**. O cliente escolhe o **tamanho** (Pequeno/Médio/Grande) e,
+para cada recheio, **quantas porções** quer — com o **peso de cada porção sempre visível**:
 
-- **Preço** = preço base do tamanho + adicional de cada recheio (o adicional também é multiplicado pelo fator do tamanho).
-- **Baixa** = massa do tamanho + porção de cada recheio × fator (ex.: Pequeno ×0,6, Grande ×1,5).
-  Acontece no banco, numa transação só, junto com os outros itens do pedido (receitas e prontos somam o consumo).
-- A cozinha vê os recheios escolhidos na aba **Pedidos** e o cliente em **Meus Pedidos**.
-- Combos/promoções: o personalizado conta na categoria **"Personalizado"** (ex.: "2 personalizados + 1 bebida").
+> 🧀 Mussarela — **1 fatia = 25 g** · +R$ 1,00 cada  →  `[−] 2 [+]`  →  *2 fatias = **50 g***
+
+- **Porção** é definida por ingrediente: nome (fatia, colher, pitada...), **peso de 1 porção** (ex.: 25 g),
+  **preço de 1 porção** e **máximo de porções** por pastel. Ingredientes em kg/L aparecem em g/ml (0,025 kg → 25 g).
+- **Tamanho** define o **preço base**, a **massa gasta** e o **máximo de porções** de recheio no total
+  (ex.: Pequeno até 3, Médio até 5, Grande até 8). O tamanho **não muda** a gramatura que o cliente escolheu.
+- **Preço** = preço base do tamanho + (porções × preço da porção) de cada ingrediente.
+- **Baixa** = massa do tamanho + (porções × peso da porção) de cada ingrediente, no banco, numa transação só,
+  junto com o resto do pedido (receitas e prontos somam o consumo).
+- A cozinha vê na aba **Pedidos**, por exemplo: *2x Pastel Personalizado (Médio) — 2 fatias de Mussarela (50 g), 1 porção de Carne moída (25 g)*.
+  O cliente vê o mesmo em **Meus Pedidos**.
+- O cliente só vê o que tem estoque (ingrediente com menos de 1 porção some). A sacola se reajusta se o estoque mudar.
+- Combos/promoções: o personalizado conta na categoria **"Personalizado"**.
 
 Configuração em **Estoque > Personalizado**: ligar/desligar, qual ingrediente é a **massa**, **tamanhos**
-(preço base, fator, massa gasta) e, para cada ingrediente, se aparece para o cliente, categoria, **porção no médio**
-e **adicional de preço**. Para um ingrediente novo (ex.: Nutella): cadastre em Ingredientes, depois configure aqui.
-Os preços e porções do seed são **sugestões** — ajuste ao seu custo.
+e, para cada ingrediente, se aparece para o cliente, categoria, **nome/peso/preço da porção** e **máximo**.
+Para um ingrediente novo (ex.: Nutella): cadastre em Ingredientes, depois configure aqui. Os pesos e preços do seed são
+**sugestões** — ajuste ao seu custo.
 
 ### Aba Estoque (visual)
 Resumo no topo (Em falta · Acabando · No cardápio), barras de nível por cor, ícones por ingrediente, busca,

@@ -214,8 +214,8 @@ function stepCart(){
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px dashed var(--line); gap:10px;">
           <div style="min-width:0;">
             <div style="font-weight: 700; font-size: 14px;">🧑‍🍳 ${escapeHtml(customLineLabel(l))}</div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-top:2px;">${customLineIngredientNames(l).map(escapeHtml).join(', ')}</div>
-            <div style="font-size: 12px; color: var(--text-muted);">${l.qty}x ${money(customUnitPrice(l.sizeId, l.ingredientIds))}</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top:2px; line-height:1.5;">${customLineIngredientTexts(l).map(escapeHtml).join('<br>')}</div>
+            <div style="font-size: 12px; color: var(--text-muted);">${l.qty}x ${money(customUnitPrice(l.sizeId, l.picks))}</div>
           </div>
           <div style="text-align: right; flex:none;">
             <div style="font-weight: 800;">${money(customLineTotal(l))}</div>
@@ -359,7 +359,7 @@ async function submitOrder(){
   }
 
   const items = cartItems();
-  const customLines = state.customCart.map(l => ({ ...l, ingredientIds: [...l.ingredientIds] }));
+  const customLines = state.customCart.map(l => ({ ...l, picks: { ...l.picks } }));
   const t = calcTotals();
 
   // Dá baixa no estoque ANTES de gravar o pedido. A conta é feita dentro do

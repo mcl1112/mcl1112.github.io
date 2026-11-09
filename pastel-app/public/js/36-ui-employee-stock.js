@@ -52,9 +52,11 @@ function barHtml(level){
   return `<div class="bar"><i class="bar-fill ${level.tone}" style="width:${level.pct}%"></i></div>`;
 }
 
+// tamanho "do meio" (usado só pra estimar quantos pastéis a massa rende)
 function mediumSize(){
   if(state.customSizes.length === 0) return null;
-  return [...state.customSizes].sort((a, b) => Math.abs(a.factor - 1) - Math.abs(b.factor - 1))[0];
+  const sorted = [...state.customSizes].sort((a, b) => a.sort - b.sort);
+  return sorted[Math.floor((sorted.length - 1) / 2)];
 }
 
 // Quantos pastéis dá pra fazer só com esse ingrediente (estimativa; null = não dá pra saber)
@@ -66,6 +68,12 @@ function ingredientServings(ing){
   const basis = Math.max(0, ...bases);
   if(!(basis > 0)) return null;
   return Math.floor(ing.stock / basis + STOCK_EPS);
+}
+// "pastéis" (receitas/massa) ou o nome da porção ("fatias", "colheres"...)
+function servingsNoun(ing){
+  const usedInRecipe = state.recipes.some(r => r.ingredientId === ing.id);
+  if(ing.customEnabled && ing.customPortion > 0 && !usedInRecipe) return portionNoun(ing, 2);
+  return 'pastéis';
 }
 function ingredientLevel(ing){
   const n = ingredientServings(ing);
@@ -384,7 +392,7 @@ function ingredientCard(ing){
         </div>
         <div class="s-qty">
           <b>${fmtQty(ing.stock)}</b> ${ing.unit}
-          ${servings !== null ? `<span class="s-sub">· dá pra ~${fmtQty(servings)} pastéis</span>` : ''}
+          ${servings !== null ? `<span class="s-sub">· dá pra ~${fmtQty(servings)} ${escapeHtml(servingsNoun(ing))}</span>` : ''}
         </div>
         ${barHtml(lv)}
         ${usedBy.length > 0 ? `<div class="muted" style="margin-top:6px;">Receitas: ${usedBy.map(escapeHtml).join(', ')}</div>` : ''}

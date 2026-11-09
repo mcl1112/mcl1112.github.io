@@ -194,7 +194,7 @@ main { padding: 16px; }
 }
 .food-details { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
 .food-name { font-size: 15px; font-weight: 700; color: var(--text-main); margin-bottom: 2px; }
-.food-desc { font-size: 12px; color: var(--text-muted); line-height: 1.3; margin-bottom: 6px; display: -webkit-box;/* -webkit-line-clamp: 2; */-webkit-box-orient: vertical; overflow: hidden; }
+.food-desc { font-size: 12px; color: var(--text-muted); line-height: 1.3; margin-bottom: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .food-bottom { display: flex; justify-content: space-between; align-items: center; }
 .food-price { font-size: 15px; font-weight: 800; color: var(--text-main); }
 
@@ -247,7 +247,7 @@ main { padding: 16px; }
   overflow: hidden; box-shadow: inset 0 4px 12px rgba(0,0,0,0.3);
   display: flex; align-items: center; justify-content: center;
 }
-.fry-scene img, .fry-scene video { width: 100%; height: 100%; object-fit: cover; }
+.fry-scene img, .fry-scene video { width: 100%; height: 100%; object-fit: cover; opacity: 0.35; mix-blend-mode: overlay; }
 .fry-pastel {
   position: absolute; font-size: 42px;
   animation: sizzle 0.8s ease-in-out infinite alternate;
@@ -448,3 +448,29 @@ main { padding: 16px; }
 .builder-bar-price small { display: block; font-size: 11px; color: var(--text-muted); font-weight: 700; }
 .builder-bar-price b { font-family: 'Fredoka'; font-size: 20px; color: var(--brand-red); }
 .builder-bar .btn { padding: 12px 18px; }
+
+/* ============================================================
+   CLIENTE — porções por ingrediente (gramatura em destaque)
+   ============================================================ */
+.grams { color: var(--brand-red); font-family: 'Fredoka'; font-weight: 600; }
+.ing-row { display: flex; align-items: center; gap: 12px; background: #FFF; border: 1.5px solid var(--line); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; transition: border-color .15s, background .15s; }
+.ing-row.active { border-color: var(--brand-red); background: #FFF5F5; }
+.ing-emoji { font-size: 26px; width: 40px; height: 40px; border-radius: 12px; background: #F3F4F6; display: flex; align-items: center; justify-content: center; flex: none; }
+.ing-row.active .ing-emoji { background: #FEE2E2; }
+.ing-info { flex: 1; min-width: 0; }
+.ing-name { font-weight: 800; font-size: 14px; color: var(--text-main); }
+.ing-portion { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.ing-portion b { font-size: 13px; }
+.ing-total { font-size: 12.5px; font-weight: 700; color: var(--text-main); margin-top: 3px; }
+.ing-stepper { display: flex; align-items: center; gap: 8px; flex: none; }
+.step-btn { width: 34px; height: 34px; border-radius: 50%; background: #F3F4F6; border: 1.5px solid var(--line); font-size: 18px; font-weight: 800; color: var(--text-main); display: flex; align-items: center; justify-content: center; padding: 0; }
+.step-btn.plus { background: var(--brand-red); border-color: var(--brand-red); color: #FFF; }
+.step-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.step-num { min-width: 18px; text-align: center; font-family: 'Fredoka'; font-size: 17px; font-weight: 700; }
+
+.cap-box { background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 12px; padding: 10px 12px; margin-bottom: 14px; }
+.cap-box.full { background: #FFFBEB; border-color: #FDE68A; }
+.cap-text { font-size: 12.5px; color: var(--text-main); }
+.size-cap { font-size: 10.5px; font-weight: 800; color: var(--brand-red); margin-top: 2px; }
+.builder-grams { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); font-size: 13px; }
+.builder-summary-list > div { padding: 2px 0; }
